@@ -56,7 +56,6 @@ export class Cache extends EventEmitter {
 
   logger.debug('[Cache] Initializing cache with cacheDb:', cacheDbNum, 'schedDb:', schedDbNum);
 
-  this.batcher = new PipelineBatcher(this);
   this.cacheDbNum = cacheDbNum;
   this.schedDbNum = schedDbNum || -1;
 
@@ -66,8 +65,9 @@ export class Cache extends EventEmitter {
 
   this.cacheDb = new Redis({ host, db: cacheDbNum });
   this.cacheSub = new Redis({ host, db: cacheDbNum });
+  this.batcher = new PipelineBatcher(this);
 
-  if (!schedDbNum) {
+  if (schedDbNum) {
    this.scheduleDb = new Redis({ host, db: schedDbNum });
    this.scheduleSub = new Redis({ host, db: schedDbNum });
   } else {
