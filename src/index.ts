@@ -10,6 +10,6 @@ export * from './Types/Redis.js';
 //#endregion
 
 //#region Functions
-export * from './Functions/getChannelPerms.js';
-export * from './Functions/getGuildPerms.js';
+export { default as getChannelPerms } from './Functions/getChannelPerms.js';
+export { default as getGuildPerms } from './Functions/getGuildPerms.js';
 //#endregion
