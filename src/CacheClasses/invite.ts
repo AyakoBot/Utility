@@ -110,7 +110,6 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
   pipeline.hdel(this.codestore(), code);
 
   await pipeline.exec();
-  return 1;
  }
 
  apiToR(data: APIInvite) {

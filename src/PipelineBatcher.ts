@@ -3,108 +3,97 @@ import type { ChainableCommander } from 'ioredis';
 import type { Cache } from './Cache.js';
 import logger from './Logger.js';
 
-type QueuedOperation = {
- addToPipeline: (pipeline: ChainableCommander) => void;
- resolve: (result: unknown) => void;
- reject: (err: Error) => void;
-};
-
 export class PipelineBatcher {
- private pending: QueuedOperation[] = [];
- private isProcessing = false;
+ private pipeline: ChainableCommander;
+ private commandCount = 0;
+ private flushPromise: Promise<void> | null = null;
  private flushTimer: ReturnType<typeof setTimeout> | null = null;
- private readonly flushIntervalMs: number;
  private readonly cache: Cache;
- private readonly execTimeoutMs = 30000;
 
- constructor(cache: Cache, flushIntervalMs = 10) {
+ private readonly maxBatchSize = 2000;
+ private readonly flushIntervalMs: number = 10;
+
+ constructor(cache: Cache, flushIntervalMs: number = 10) {
   this.cache = cache;
   this.flushIntervalMs = flushIntervalMs;
+  this.pipeline = this.cache.cacheDb.pipeline();
  }
 
- private getBatchSize(): number {
-  const depth = this.pending.length;
-  if (depth > 50000) return 25000;
-  if (depth > 10000) return 10000;
-  if (depth > 1000) return 5000;
-  return 1000;
- }
+ async queue(addToPipeline: (pipeline: ChainableCommander) => void): Promise<void> {
+  while (this.commandCount >= this.maxBatchSize && this.flushPromise) {
+   await this.flushPromise;
+  }
 
- queue(addToPipeline: (pipeline: ChainableCommander) => void): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-   this.pending.push({ addToPipeline, resolve, reject });
+  // Add command to pipeline
+  addToPipeline(this.pipeline);
+  this.commandCount++;
+
+  // Trigger flush if at batch size
+  if (this.commandCount >= this.maxBatchSize) {
+   await this.flush();
+  } else {
    this.scheduleFlush();
-  });
+  }
+ }
+
+ queueSync(addToPipeline: (pipeline: ChainableCommander) => void): void {
+  addToPipeline(this.pipeline);
+  this.commandCount++;
+
+  if (this.commandCount >= this.maxBatchSize) {
+   this.flushAsync();
+  } else {
+   this.scheduleFlush();
+  }
  }
 
  private scheduleFlush(): void {
-  if (this.isProcessing) return;
+  if (this.flushTimer || this.flushPromise) return;
 
-  const batchSize = this.getBatchSize();
-
-  if (this.pending.length >= batchSize) {
-   if (this.flushTimer) {
-    clearTimeout(this.flushTimer);
-    this.flushTimer = null;
-   }
-   this.flush();
-  } else if (!this.flushTimer) {
-   this.flushTimer = setTimeout(() => {
-    this.flushTimer = null;
-    this.flush();
-   }, this.flushIntervalMs);
-  }
+  this.flushTimer = setTimeout(() => {
+   this.flushTimer = null;
+   this.flushAsync();
+  }, this.flushIntervalMs);
  }
 
- private execWithTimeout(
-  pipeline: ChainableCommander,
- ): Promise<[error: Error | null, result: unknown][] | null> {
-  return Promise.race([
-   pipeline.exec(),
-   new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error('Pipeline exec timeout after 30s')), this.execTimeoutMs);
-   }),
-  ]);
+ private flushAsync(): void {
+  if (this.flushPromise || this.commandCount === 0) return;
+  this.flush().catch((err) => logger.error('[Redis] Flush error:', err));
  }
 
- private async flush(): Promise<void> {
-  if (this.isProcessing || this.pending.length === 0) return;
-
-  this.isProcessing = true;
-  const startDepth = this.pending.length;
-  let totalProcessed = 0;
-  let batchNum = 0;
-
-  while (this.pending.length > 0) {
-   const batchSize = this.getBatchSize();
-   const batch = this.pending.splice(0, batchSize);
-   const pipeline = this.cache.cacheDb.pipeline();
-   batchNum += 1;
-
-   try {
-    batch.forEach(({ addToPipeline }) => addToPipeline(pipeline));
-
-    if (batch.length > 100) {
-     logger.log(
-      `[Redis] Executing batch ${batchNum} | Size: ${batch.length} | Pending: ${this.pending.length}`,
-     );
-    }
-
-    const results = await this.execWithTimeout(pipeline);
-    batch.forEach(({ resolve }, i) => resolve(results?.[i]?.[1] ?? null));
-    totalProcessed += batch.length;
-   } catch (err) {
-    logger.error('[Redis] Batch failed:', err);
-    batch.forEach(({ reject }) => reject(err as Error));
-   }
+ async flush(): Promise<void> {
+  if (this.flushPromise) {
+   return this.flushPromise;
   }
 
-  logger.log(
-   `[Redis] Flushed ${totalProcessed} ops | Started: ${startDepth} | Remaining: ${this.pending.length}`,
-  );
+  if (this.commandCount === 0) return;
 
-  this.isProcessing = false;
+  if (this.flushTimer) {
+   clearTimeout(this.flushTimer);
+   this.flushTimer = null;
+  }
 
-  if (this.pending.length > 0) this.scheduleFlush();
+  const pipelineToExec = this.pipeline;
+  const count = this.commandCount;
+
+  // Create new pipeline for incoming commands
+  this.pipeline = this.cache.cacheDb.pipeline();
+  this.commandCount = 0;
+
+  if (count > 100) {
+   logger.log(`[Redis] Flushing ${count} commands`);
+  }
+
+  this.flushPromise = pipelineToExec
+   .exec()
+   .then(() => {
+    this.flushPromise = null;
+   })
+   .catch((err) => {
+    this.flushPromise = null;
+    throw err;
+   });
+
+  return this.flushPromise;
  }
 }
