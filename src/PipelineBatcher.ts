@@ -24,11 +24,9 @@ export class PipelineBatcher {
    await this.flushPromise;
   }
 
-  // Add command to pipeline
   addToPipeline(this.pipeline);
   this.commandCount++;
 
-  // Trigger flush if at batch size
   if (this.commandCount >= this.maxBatchSize) {
    await this.flush();
   } else {
@@ -76,7 +74,6 @@ export class PipelineBatcher {
   const pipelineToExec = this.pipeline;
   const count = this.commandCount;
 
-  // Create new pipeline for incoming commands
   this.pipeline = this.cache.cacheDb.pipeline();
   this.commandCount = 0;
 
