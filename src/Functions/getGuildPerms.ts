@@ -1,10 +1,10 @@
 import { PermissionFlagsBits } from '@discordjs/core';
 
-import type Cache from '../Cache.js';
+import type { Cache } from '../Cache.js';
 import { TimeoutDeniedPermissions } from '../Types/index.js';
 
 export default async function (
- this: typeof Cache,
+ this: typeof Cache.prototype,
  guildId: string,
  userId: string,
 ): Promise<{ response: bigint; debug: number }> {

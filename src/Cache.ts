@@ -75,6 +75,7 @@ export class Cache extends EventEmitter {
    this.scheduleSub = null;
   }
 
+  logger.log('[Cache] Redis connections established. Subscribing to events:', sub);
   if (sub) this._sub();
 
   logger.silly('[Cache] Initializing cache classes...');
@@ -151,11 +152,11 @@ export class Cache extends EventEmitter {
 
   logger.debug('[Cache] Subscribing to Redis channels');
   this.cacheSub.subscribe(
-   `__keyevent@${schedDbNum}__:expired`,
+   `__keyevent@${this.schedDbNum}__:expired`,
    ...Object.values(GatewayDispatchEvents),
    ...messageTypes,
   );
-  this.scheduleSub!.subscribe(`__keyevent@${schedDbNum}__:expired`);
+  this.scheduleSub!.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
  };
 
  private callback = async (channel: string, key: string) => {
@@ -206,9 +207,3 @@ export class Cache extends EventEmitter {
   this.emit('expire', { eventName, value: value ? JSON.parse(value) : null });
  };
 }
-
-const cacheDbNum = process.argv.includes('--dev') ? 2 : 0;
-const schedDbNum = process.argv.includes('--dev') ? 3 : 1;
-
-const cache = new Cache(cacheDbNum, schedDbNum);
-export default cache;

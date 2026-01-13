@@ -1,12 +1,12 @@
 import { OverwriteType, PermissionFlagsBits } from '@discordjs/core';
 
-import type Cache from '../Cache.js';
+import type { Cache } from '../Cache.js';
 import { TimeoutDeniedPermissions } from '../Types/index.js';
 
 import getGuildPerms from './getGuildPerms.js';
 
 export default async function (
- this: typeof Cache,
+ this: typeof Cache.prototype,
  guildId: string,
  userId: string,
  channelId: string,
