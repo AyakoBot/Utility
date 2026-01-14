@@ -42,13 +42,17 @@ export class Cache extends EventEmitter {
  readonly prefix = 'cache';
  readonly cacheDbNum: number;
  readonly schedDbNum: number;
- readonly batcher: PipelineBatcher;
+ batcher: PipelineBatcher;
 
  private pipelineInFlight = 0;
  private readonly maxConcurrentPipelines = 10;
  private pipelineQueue: Array<() => void> = [];
 
- readonly cacheDb: Redis;
+ // @ts-expect-error -- This is used
+ private recycleTimer: NodeJS.Timeout | null = null;
+ private readonly recycleIntervalMs = 30 * 60 * 1000; // 30 minutes
+
+ cacheDb: Redis;
  readonly cacheSub: Redis;
  readonly scheduleDb: Redis | null;
  readonly scheduleSub: Redis | null;
@@ -67,13 +71,13 @@ export class Cache extends EventEmitter {
   const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
   logger.log('[Cache] Using Redis host:', host);
 
-  const redisOptions = { host, db: cacheDbNum, dropBufferSupport: true };
+  const redisOptions = { host, db: cacheDbNum };
   this.cacheDb = new Redis(redisOptions);
   this.cacheSub = new Redis(redisOptions);
   this.batcher = new PipelineBatcher(this.cacheDb);
 
   if (schedDbNum) {
-   const schedOptions = { host, db: schedDbNum, dropBufferSupport: true };
+   const schedOptions = { host, db: schedDbNum };
    this.scheduleDb = new Redis(schedOptions);
    this.scheduleSub = new Redis(schedOptions);
   } else {
@@ -118,7 +122,39 @@ export class Cache extends EventEmitter {
   this.cacheSub.on('message', this.callback);
   this.scheduleSub?.on('message', this.callback);
 
+  this.startRecycling();
+
   logger.log('[Cache] Cache initialization complete');
+ }
+
+ private startRecycling(): void {
+  this.recycleTimer = setInterval(() => {
+   this.recycleConnection().catch((err) => logger.error('[Cache] Recycle error:', err));
+  }, this.recycleIntervalMs);
+ }
+
+ async recycleConnection(): Promise<void> {
+  logger.log('[Cache] Starting connection recycle...');
+
+  await this.batcher.flush();
+
+  const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
+  const newDb = new Redis({
+   host,
+   db: this.cacheDbNum,
+  });
+
+  await new Promise<void>((resolve) => newDb.once('ready', resolve));
+
+  const oldDb = this.cacheDb;
+  this.cacheDb = newDb;
+  this.batcher = new PipelineBatcher(newDb);
+
+  setTimeout(() => {
+   oldDb.quit().catch(() => oldDb.disconnect());
+  }, 5000);
+
+  logger.log('[Cache] Connection recycled successfully');
  }
 
  readonly audits: AuditLogCache;
