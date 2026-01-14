@@ -12,6 +12,11 @@ export class PipelineBatcher {
  private readonly maxBatchSize = 2000;
  private readonly flushIntervalMs: number = 10;
 
+ private static globalInFlight = 0;
+ private static readonly maxGlobalInFlight = 10000;
+ private static waitQueue: Array<() => void> = [];
+ private static readonly maxWaitQueue = 5000;
+
  constructor(cacheDb: Redis, flushIntervalMs: number = 10) {
   this.cacheDb = cacheDb;
   this.flushIntervalMs = flushIntervalMs;
@@ -33,7 +38,15 @@ export class PipelineBatcher {
   }
  }
 
- queueSync(addToPipeline: (pipeline: ChainableCommander) => void): void {
+ async queueSync(addToPipeline: (pipeline: ChainableCommander) => void): Promise<boolean> {
+  if (PipelineBatcher.globalInFlight >= PipelineBatcher.maxGlobalInFlight) {
+   if (PipelineBatcher.waitQueue.length >= PipelineBatcher.maxWaitQueue) {
+    logger.warn('[Redis] Backpressure: dropping command, queue full:', PipelineBatcher.waitQueue.length);
+    return false;
+   }
+   await new Promise<void>((resolve) => PipelineBatcher.waitQueue.push(resolve));
+  }
+
   addToPipeline(this.pipeline);
   this.commandCount++;
 
@@ -42,6 +55,7 @@ export class PipelineBatcher {
   } else {
    this.scheduleFlush();
   }
+  return true;
  }
 
  private scheduleFlush(): void {
@@ -51,6 +65,16 @@ export class PipelineBatcher {
    this.flushTimer = null;
    this.flushAsync();
   }, this.flushIntervalMs);
+ }
+
+ private static drainWaitQueue(): void {
+  while (
+   PipelineBatcher.waitQueue.length > 0 &&
+   PipelineBatcher.globalInFlight < PipelineBatcher.maxGlobalInFlight
+  ) {
+   const next = PipelineBatcher.waitQueue.shift();
+   if (next) next();
+  }
  }
 
  private flushAsync(): void {
@@ -76,13 +100,18 @@ export class PipelineBatcher {
   this.pipeline = this.cacheDb.pipeline();
   this.commandCount = 0;
 
+  PipelineBatcher.globalInFlight += count;
+
   if (count > 100) {
-   logger.log(`[Redis] Flushing ${count} commands`);
+   logger.log(`[Redis] Flushing ${count} commands (in-flight: ${PipelineBatcher.globalInFlight})`);
   }
 
   this.flushPromise = pipelineToExec
    .exec()
    .then((result) => {
+    PipelineBatcher.globalInFlight -= count;
+    PipelineBatcher.drainWaitQueue();
+
     if (result) {
      for (let i = 0; i < result.length; i++) {
       (result as unknown[])[i] = null;
@@ -93,6 +122,8 @@ export class PipelineBatcher {
     if (this.commandCount > 0) process.nextTick(() => this.scheduleFlush());
    })
    .catch((err) => {
+    PipelineBatcher.globalInFlight -= count;
+    PipelineBatcher.drainWaitQueue();
     this.flushPromise = null;
     if (this.commandCount > 0) process.nextTick(() => this.scheduleFlush());
     throw err;
