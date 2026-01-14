@@ -85,11 +85,11 @@ export class PipelineBatcher {
    .exec()
    .then(() => {
     this.flushPromise = null;
-    if (this.commandCount > 0) this.scheduleFlush();
+    if (this.commandCount > 0) setImmediate(() => this.scheduleFlush());
    })
    .catch((err) => {
     this.flushPromise = null;
-    if (this.commandCount > 0) this.scheduleFlush();
+    if (this.commandCount > 0) setImmediate(() => this.scheduleFlush());
     throw err;
    });
 
