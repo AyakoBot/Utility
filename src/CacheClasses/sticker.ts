@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { StickerFormatType, type APISticker } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 import type { MakeRequired } from '../Types/index.js';
 
 import Cache from './Base/Cache.js';
@@ -29,8 +28,8 @@ export const RStickerKeys = [
 export default class StickerCache extends Cache<APISticker> {
  public keys = RStickerKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'stickers', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'stickers');
  }
 
  public static getUrl(stickerId: string, format: StickerFormatType = StickerFormatType.PNG) {

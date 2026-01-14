@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIWebhook } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -32,8 +31,8 @@ export default class WebhookCache extends Cache<
 > {
  public keys = RWebhookKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'webhooks', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'webhooks');
  }
 
  public static avatarUrl(avatar: string, webhookId: string) {

@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIAutoModerationRule } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -25,8 +24,8 @@ export const RAutomodKeys = [
 export default class AutomodCache extends Cache<APIAutoModerationRule> {
  public keys = RAutomodKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'automods', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'automods');
  }
 
  async set(data: APIAutoModerationRule) {

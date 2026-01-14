@@ -27,10 +27,9 @@ import type {
  APIVoiceState,
  APIWebhook,
 } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
-import type { ChainableCommander } from 'ioredis';
 
-import type { PipelineBatcher } from '../../PipelineBatcher.js';
+import type BunRedisWrapper from '../../BunRedis.js';
+import type { BunChainableCommander } from '../../BunRedis.js';
 import type { RAuditLog } from '../auditlog.js';
 import type { RAutomod } from '../automod.js';
 import type { RBan } from '../ban.js';
@@ -164,7 +163,6 @@ export default abstract class Cache<
  K extends boolean = false,
 > {
  abstract keys: ReadonlyArray<keyof DeriveRFromAPI<T, K>>;
- batcher: PipelineBatcher;
 
  private dedupeScript = `
  local currentKey = KEYS[1]
@@ -173,54 +171,54 @@ export default abstract class Cache<
  local newValue = ARGV[1]
  local ttl = tonumber(ARGV[2])
  local timestamp = ARGV[3]
- 
+
  -- Function to normalize JSON by sorting keys recursively
  local function normalizeJson(jsonStr)
    local success, decoded = pcall(cjson.decode, jsonStr)
    if not success then
      return jsonStr  -- Return original if not valid JSON
    end
-   
+
    local function sortTable(t)
      if type(t) ~= "table" then
        return t
      end
-     
+
      local result = {}
      local keys = {}
-     
+
      -- Collect all keys
      for k in pairs(t) do
        table.insert(keys, k)
      end
-     
+
      -- Sort keys
      table.sort(keys, function(a, b)
        return tostring(a) < tostring(b)
      end)
-     
+
      -- Rebuild table with sorted keys, recursively sorting nested objects
      for _, k in ipairs(keys) do
        result[k] = sortTable(t[k])
      end
-     
+
      return result
    end
-   
+
    local sortedTable = sortTable(decoded)
    local success2, normalizedJson = pcall(cjson.encode, sortedTable)
    return success2 and normalizedJson or jsonStr
  end
- 
+
  local current = redis.call('GET', currentKey)
  local normalizedCurrent = current and normalizeJson(current) or nil
  local normalizedNew = normalizeJson(newValue)
- 
+
  if normalizedCurrent == normalizedNew then
    redis.call('EXPIRE', currentKey, ttl)
    return 0
  end
- 
+
  redis.call('SET', currentKey, newValue, 'EX', ttl)
  redis.call('SET', timestampKey, newValue, 'EX', ttl)
  redis.call('HSET', historyKey, timestampKey, timestamp)
@@ -231,14 +229,13 @@ export default abstract class Cache<
  private prefix: string;
  private keystorePrefix: string;
  private historyPrefix: string;
- public redis: Redis;
+ public redis: BunRedisWrapper;
 
- constructor(redis: Redis, type: string, batcher: PipelineBatcher) {
+ constructor(redis: BunRedisWrapper, type: string) {
   this.prefix = `cache:${type}`;
   this.historyPrefix = `history:${type}`;
   this.keystorePrefix = `keystore:${type}`;
   this.redis = redis;
-  this.batcher = batcher;
  }
 
  stringToData = (data: string | null) => (data ? (JSON.parse(data) as DeriveRFromAPI<T, K>) : null);
@@ -285,7 +282,7 @@ export default abstract class Cache<
  }
 
  private setKeystore(
-  pipeline: ChainableCommander,
+  pipeline: BunChainableCommander,
   ttl: number = 604800,
   keystoreKeys: string[],
   keys: string[],
@@ -299,7 +296,7 @@ export default abstract class Cache<
   keystoreIds: string[],
   ids: string[],
   ttl: number = 604800,
-  pipeline?: ChainableCommander,
+  pipeline?: BunChainableCommander,
  ) {
   const now = Date.now();
   const valueStr = JSON.stringify(value);
@@ -313,14 +310,14 @@ export default abstract class Cache<
    return null;
   }
 
-  return this.batcher.queue((p) => {
-   p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
-   if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
-  });
+  const p = this.redis.pipeline();
+  p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
+  if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
+  return p.exec();
  }
 
  del(...ids: string[]) {
-  return this.batcher.queue((p) => p.del(this.key(...ids, 'current')));
+  return this.redis.del(this.key(...ids, 'current'));
  }
 
  abstract apiToR(data: T, ...additionalArgs: string[]): DeriveRFromAPI<T, K> | false;

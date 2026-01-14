@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuildChannel, ChannelType } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -57,8 +56,8 @@ export default class ChannelCache extends Cache<
 > {
  public keys = RChannelKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'channels', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'channels');
  }
 
  async set(data: APIGuildChannel<RChannelTypes>) {

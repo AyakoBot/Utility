@@ -1,9 +1,9 @@
-import type Redis from 'ioredis';
+import type BunRedisWrapper from '../../BunRedis.js';
 
 export default class StringCache {
  protected prefix: string;
  protected historyPrefix: string;
- public redis: Redis;
+ public redis: BunRedisWrapper;
 
  private dedupeScript = `
  local cacheKey = KEYS[1]
@@ -33,7 +33,7 @@ export default class StringCache {
  return 0
  `;
 
- constructor(redis: Redis, type: string) {
+ constructor(redis: BunRedisWrapper, type: string) {
   this.prefix = `cache:${type}`;
   this.historyPrefix = `history:${type}`;
   this.redis = redis;

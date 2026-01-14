@@ -1,9 +1,9 @@
-import type Redis from 'ioredis';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import StringCache from './Base/StringCache.js';
 
 export default class ChannelStatusCache extends StringCache {
- constructor(redis: Redis) {
+ constructor(redis: BunRedisWrapper) {
   super(redis, 'channels-statuses');
  }
 

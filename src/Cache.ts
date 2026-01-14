@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
 
 import { GatewayDispatchEvents } from '@discordjs/core';
-import Redis from 'ioredis';
 
+import BunRedisWrapper, { type BunChainableCommander } from './BunRedis.js';
 import AuditLogCache from './CacheClasses/auditlog.js';
 import AutomodCache from './CacheClasses/automod.js';
 import BanCache from './CacheClasses/ban.js';
@@ -33,7 +33,6 @@ import VoiceCache from './CacheClasses/voice.js';
 import WebhookCache from './CacheClasses/webhook.js';
 import WelcomeScreenCache from './CacheClasses/welcomeScreen.js';
 import logger from './Logger.js';
-import { PipelineBatcher } from './PipelineBatcher.js';
 import { MessageType } from './Types/Redis.js';
 
 const messageTypes = [MessageType.Interaction, MessageType.Vote, MessageType.Appeal];
@@ -42,20 +41,15 @@ export class Cache extends EventEmitter {
  readonly prefix = 'cache';
  readonly cacheDbNum: number;
  readonly schedDbNum: number;
- batcher: PipelineBatcher;
 
  private pipelineInFlight = 0;
  private readonly maxConcurrentPipelines = 10;
  private pipelineQueue: Array<() => void> = [];
 
- // @ts-expect-error -- This is used
- private recycleTimer: NodeJS.Timeout | null = null;
- private readonly recycleIntervalMs = 5 * 60 * 1000; // 5 minutes - aggressive preventive recycling
-
- cacheDb: Redis;
- readonly cacheSub: Redis;
- readonly scheduleDb: Redis | null;
- readonly scheduleSub: Redis | null;
+ cacheDb: BunRedisWrapper;
+ readonly cacheSub: BunRedisWrapper;
+ readonly scheduleDb: BunRedisWrapper | null;
+ readonly scheduleSub: BunRedisWrapper | null;
 
  constructor(cacheDbNum: number, schedDbNum?: number, sub: boolean = true) {
   if (sub && !schedDbNum) throw new Error('[Cache] schedDbNum must be provided if sub is true');
@@ -72,14 +66,13 @@ export class Cache extends EventEmitter {
   logger.log('[Cache] Using Redis host:', host);
 
   const redisOptions = { host, db: cacheDbNum };
-  this.cacheDb = new Redis(redisOptions);
-  this.cacheSub = new Redis(redisOptions);
-  this.batcher = new PipelineBatcher(this.cacheDb);
+  this.cacheDb = new BunRedisWrapper(redisOptions);
+  this.cacheSub = new BunRedisWrapper(redisOptions);
 
   if (schedDbNum) {
    const schedOptions = { host, db: schedDbNum };
-   this.scheduleDb = new Redis(schedOptions);
-   this.scheduleSub = new Redis(schedOptions);
+   this.scheduleDb = new BunRedisWrapper(schedOptions);
+   this.scheduleSub = new BunRedisWrapper(schedOptions);
   } else {
    this.scheduleDb = null;
    this.scheduleSub = null;
@@ -89,72 +82,37 @@ export class Cache extends EventEmitter {
   if (sub) this._sub();
 
   logger.silly('[Cache] Initializing cache classes...');
-  this.audits = new AuditLogCache(this.cacheDb, this.batcher);
-  this.automods = new AutomodCache(this.cacheDb, this.batcher);
-  this.bans = new BanCache(this.cacheDb, this.batcher);
-  this.channels = new ChannelCache(this.cacheDb, this.batcher);
+  this.audits = new AuditLogCache(this.cacheDb);
+  this.automods = new AutomodCache(this.cacheDb);
+  this.bans = new BanCache(this.cacheDb);
+  this.channels = new ChannelCache(this.cacheDb);
   this.channelStatus = new ChannelStatusCache(this.cacheDb);
-  this.commands = new CommandCache(this.cacheDb, this.batcher);
-  this.commandPermissions = new CommandPermissionCache(this.cacheDb, this.batcher);
-  this.emojis = new EmojiCache(this.cacheDb, this.batcher);
-  this.events = new EventCache(this.cacheDb, this.batcher);
-  this.guilds = new GuildCache(this.cacheDb, this.batcher);
-  this.guildCommands = new GuildCommandCache(this.cacheDb, this.batcher);
-  this.integrations = new IntegrationCache(this.cacheDb, this.batcher);
-  this.invites = new InviteCache(this.cacheDb, this.batcher);
-  this.members = new MemberCache(this.cacheDb, this.batcher);
-  this.messages = new MessageCache(this.cacheDb, this.batcher);
-  this.reactions = new ReactionCache(this.cacheDb, this.batcher);
-  this.roles = new RoleCache(this.cacheDb, this.batcher);
-  this.soundboards = new SoundboardCache(this.cacheDb, this.batcher);
-  this.stages = new StageCache(this.cacheDb, this.batcher);
-  this.stickers = new StickerCache(this.cacheDb, this.batcher);
-  this.threads = new ThreadCache(this.cacheDb, this.batcher);
-  this.threadMembers = new ThreadMemberCache(this.cacheDb, this.batcher);
-  this.users = new UserCache(this.cacheDb, this.batcher);
-  this.voices = new VoiceCache(this.cacheDb, this.batcher);
-  this.webhooks = new WebhookCache(this.cacheDb, this.batcher);
+  this.commands = new CommandCache(this.cacheDb);
+  this.commandPermissions = new CommandPermissionCache(this.cacheDb);
+  this.emojis = new EmojiCache(this.cacheDb);
+  this.events = new EventCache(this.cacheDb);
+  this.guilds = new GuildCache(this.cacheDb);
+  this.guildCommands = new GuildCommandCache(this.cacheDb);
+  this.integrations = new IntegrationCache(this.cacheDb);
+  this.invites = new InviteCache(this.cacheDb);
+  this.members = new MemberCache(this.cacheDb);
+  this.messages = new MessageCache(this.cacheDb);
+  this.reactions = new ReactionCache(this.cacheDb);
+  this.roles = new RoleCache(this.cacheDb);
+  this.soundboards = new SoundboardCache(this.cacheDb);
+  this.stages = new StageCache(this.cacheDb);
+  this.stickers = new StickerCache(this.cacheDb);
+  this.threads = new ThreadCache(this.cacheDb);
+  this.threadMembers = new ThreadMemberCache(this.cacheDb);
+  this.users = new UserCache(this.cacheDb);
+  this.voices = new VoiceCache(this.cacheDb);
+  this.webhooks = new WebhookCache(this.cacheDb);
   this.pins = new PinCache(this.cacheDb);
-  this.welcomeScreens = new WelcomeScreenCache(this.cacheDb, this.batcher);
-  this.onboardings = new OnboardingCache(this.cacheDb, this.batcher);
-  this.eventUsers = new EventUserCache(this.cacheDb, this.batcher);
-
-  this.cacheSub.on('message', this.callback);
-  this.scheduleSub?.on('message', this.callback);
-
-  this.startRecycling();
+  this.welcomeScreens = new WelcomeScreenCache(this.cacheDb);
+  this.onboardings = new OnboardingCache(this.cacheDb);
+  this.eventUsers = new EventUserCache(this.cacheDb);
 
   logger.log('[Cache] Cache initialization complete');
- }
-
- private startRecycling(): void {
-  this.recycleTimer = setInterval(() => {
-   this.recycleConnection().catch((err) => logger.error('[Cache] Recycle error:', err));
-  }, this.recycleIntervalMs);
- }
-
- async recycleConnection(): Promise<void> {
-  logger.log('[Cache] Starting connection recycle...');
-
-  await this.batcher.flush();
-
-  const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
-  const newDb = new Redis({
-   host,
-   db: this.cacheDbNum,
-  });
-
-  await new Promise<void>((resolve) => newDb.once('ready', resolve));
-
-  const oldDb = this.cacheDb;
-  this.cacheDb = newDb;
-  this.batcher = new PipelineBatcher(newDb);
-
-  setTimeout(() => {
-   oldDb.quit().catch(() => oldDb.disconnect());
-  }, 5000);
-
-  logger.log('[Cache] Connection recycled successfully');
  }
 
  readonly audits: AuditLogCache;
@@ -190,7 +148,7 @@ export class Cache extends EventEmitter {
  private _sub = () => {
   logger.silly('[Cache] Configuring Redis keyspace notifications');
   this.cacheDb.config('SET', 'notify-keyspace-events', 'Ex');
-  this.scheduleDb!.config('SET', 'notify-keyspace-events', 'Ex');
+  this.scheduleDb?.config('SET', 'notify-keyspace-events', 'Ex');
 
   logger.debug('[Cache] Subscribing to Redis channels');
   this.cacheSub.subscribe(
@@ -198,60 +156,16 @@ export class Cache extends EventEmitter {
    ...Object.values(GatewayDispatchEvents),
    ...messageTypes,
   );
-  this.scheduleSub!.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
+  this.scheduleSub?.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
  };
 
- private callback = async (channel: string, key: string) => {
-  logger.silly('[Cache] Received message on channel:', channel);
+ queueSync(addToPipeline: (pipeline: BunChainableCommander) => void): void {
+  const pipeline = this.cacheDb.pipeline();
+  addToPipeline(pipeline);
+  pipeline.exec().catch((err) => logger.error('[Redis] Queue error:', err));
+ }
 
-  if (
-   messageTypes.includes(channel as MessageType) ||
-   Object.values(GatewayDispatchEvents).includes(channel as GatewayDispatchEvents)
-  ) {
-   const eventName = Object.entries(GatewayDispatchEvents).find(([, val]) => val === channel)?.[1];
-   if (!eventName) {
-    logger.debug('[Cache] No event name found for channel:', channel);
-    return;
-   }
-
-   let data = key ? JSON.parse(key) : null;
-   if (typeof data === 'string') data = JSON.parse(data);
-
-   if (!key.includes('669893888856817665')) return; // TODO disable dev filter
-
-   logger.silly('[Cache] Emitting event:', eventName);
-   logger.silly('[Cache] Event data:', data);
-   this.emit(eventName, data);
-  }
-
-  if (
-   channel !== `__keyevent@${this.scheduleDb!.options.db}__:expired` &&
-   channel !== `__keyevent@${this.cacheDb.options.db}__:expired`
-  ) {
-   return;
-  }
-
-  if (key.includes('scheduled-data:')) return;
-
-  const keyArgs = key.split(/:/g).splice(0, 3);
-  const eventName = keyArgs.filter((k) => Number.isNaN(+k)).join('/');
-
-  logger.debug('[Cache] Key expired:', key, '-> event:', eventName);
-
-  const dataKey = key.replace('scheduled:', 'scheduled-data:');
-  const [dbNum] = channel.split('@')[1].split(':');
-  const db = dbNum === String(this.cacheDbNum) ? this.cacheDb : this.scheduleDb!;
-
-  const value = await db.get(dataKey);
-  db.expire(dataKey, 10);
-
-  logger.silly('[Cache] Emitting expire event for:', eventName);
-  this.emit('expire', { eventName, value: value ? JSON.parse(value) : null });
- };
-
- async execPipeline<T>(
-  buildPipeline: (pipeline: ReturnType<Redis['pipeline']>) => void,
- ): Promise<T> {
+ async execPipeline<T>(buildPipeline: (pipeline: BunChainableCommander) => void): Promise<T> {
   if (this.pipelineInFlight >= this.maxConcurrentPipelines) {
    await new Promise<void>((resolve) => this.pipelineQueue.push(resolve));
   }
@@ -267,9 +181,7 @@ export class Cache extends EventEmitter {
    const values: unknown[] = [];
    for (let i = 0; i < result.length; i++) {
     values.push(result[i][1]);
-    (result as unknown[])[i] = null;
    }
-   result.length = 0;
    return values as T;
   } finally {
    this.pipelineInFlight--;

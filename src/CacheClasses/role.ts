@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIRole } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -28,8 +27,8 @@ export const RRoleKeys = [
 export default class RoleCache extends Cache<APIRole> {
  public keys = RRoleKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'roles', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'roles');
  }
 
  public static iconUrl(icon: string, roleId: string) {

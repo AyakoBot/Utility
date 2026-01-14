@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIUser } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -31,8 +30,8 @@ const RUserKeys = [
 export default class UserCache extends Cache<APIUser> {
  public keys = RUserKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'users', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'users');
  }
 
  public static assetUrl(asset: string) {

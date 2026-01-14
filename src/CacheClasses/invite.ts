@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIExtendedInvite, APIInvite } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -42,8 +41,8 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
  public keys = RInviteKeys;
  private codestorePrefix: string;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'invites', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'invites');
   this.codestorePrefix = 'codestore:invites';
  }
 
@@ -92,7 +91,7 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
   return this.get(channelId, code);
  }
 
- async del(channelId: string, code: string, guildId?: string) {
+ async del(channelId: string, code: string, guildId?: string): Promise<number> {
   if (!guildId) {
    const location = await this.redis.hget(this.codestore(), code);
    if (location) [guildId] = location.split(':');
@@ -110,6 +109,7 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
   pipeline.hdel(this.codestore(), code);
 
   await pipeline.exec();
+  return 1;
  }
 
  apiToR(data: APIInvite) {

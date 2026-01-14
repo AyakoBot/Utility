@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIEmoji } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -28,8 +27,8 @@ export const REmojiKeys = [
 export default class EmojiCache extends Cache<APIEmoji> {
  public keys = REmojiKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'emojis', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'emojis');
  }
 
  public static getUrl(emojiId: string, animated: boolean = false) {

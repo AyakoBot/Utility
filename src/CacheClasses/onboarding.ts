@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuildOnboarding } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -13,8 +12,8 @@ export const ROnboardingKeys = ['guild_id', 'prompts', 'default_channel_ids', 'm
 export default class OnboardingCache extends Cache<APIGuildOnboarding> {
  public keys = ROnboardingKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'onboarding', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'onboarding');
  }
 
  async set(data: APIGuildOnboarding) {

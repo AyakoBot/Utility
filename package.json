@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm tsc --emitDeclarationOnly && swc src -d dist --strip-leading-paths",
-    "lint": "pnpx eslint 'src/**/*.ts' --fix"
+    "build": "bun run tsc --emitDeclarationOnly && bun build src/index.ts --outdir dist --target bun",
+    "lint": "bunx eslint 'src/**/*.ts' --fix"
   },
   "exports": {
     ".": "./dist/index.js"
@@ -13,8 +13,7 @@
   "dependencies": {
     "@discordjs/core": "^2.4.0",
     "discord-api-types": "0.38.37",
-    "dotenv": "^17.2.3",
-    "ioredis": "^5.9.1"
+    "dotenv": "^17.2.3"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.28.6",
@@ -24,6 +23,7 @@
     "@swc/cli": "^0.7.9",
     "@swc/core": "1.15.8",
     "@total-typescript/ts-reset": "^0.6.1",
+    "@types/bun": "latest",
     "@types/node": "^25.0.7",
     "@typescript-eslint/eslint-plugin": "^8.53.0",
     "@typescript-eslint/parser": "^8.53.0",

@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuildMember } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type BunRedisWrapper from '../BunRedis.js';
 
 import Cache from './Base/Cache.js';
 
@@ -33,8 +32,8 @@ export const RMemberKeys = [
 export default class MemberCache extends Cache<APIGuildMember> {
  public keys = RMemberKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'members', batcher);
+ constructor(redis: BunRedisWrapper) {
+  super(redis, 'members');
  }
 
  public static bannerUrl(banner: string, userId: string, guildId: string) {
