@@ -70,7 +70,7 @@ export class Cache extends EventEmitter {
   const redisOptions = { host, db: cacheDbNum, dropBufferSupport: true };
   this.cacheDb = new Redis(redisOptions);
   this.cacheSub = new Redis(redisOptions);
-  this.batcher = new PipelineBatcher(this);
+  this.batcher = new PipelineBatcher(this.cacheDb);
 
   if (schedDbNum) {
    const schedOptions = { host, db: schedDbNum, dropBufferSupport: true };

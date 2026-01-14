@@ -1,6 +1,5 @@
-import type { ChainableCommander } from 'ioredis';
+import type { ChainableCommander, Redis } from 'ioredis';
 
-import type { Cache } from './Cache.js';
 import logger from './Logger.js';
 
 export class PipelineBatcher {
@@ -8,15 +7,15 @@ export class PipelineBatcher {
  private commandCount = 0;
  private flushPromise: Promise<void> | null = null;
  private flushTimer: ReturnType<typeof setTimeout> | null = null;
- private readonly cache: Cache;
+ private readonly cacheDb: Redis;
 
  private readonly maxBatchSize = 2000;
  private readonly flushIntervalMs: number = 10;
 
- constructor(cache: Cache, flushIntervalMs: number = 10) {
-  this.cache = cache;
+ constructor(cacheDb: Redis, flushIntervalMs: number = 10) {
+  this.cacheDb = cacheDb;
   this.flushIntervalMs = flushIntervalMs;
-  this.pipeline = this.cache.cacheDb.pipeline();
+  this.pipeline = this.cacheDb.pipeline();
  }
 
  async queue(addToPipeline: (pipeline: ChainableCommander) => void): Promise<void> {
@@ -74,7 +73,7 @@ export class PipelineBatcher {
   const pipelineToExec = this.pipeline;
   const count = this.commandCount;
 
-  this.pipeline = this.cache.cacheDb.pipeline();
+  this.pipeline = this.cacheDb.pipeline();
   this.commandCount = 0;
 
   if (count > 100) {
