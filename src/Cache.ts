@@ -239,7 +239,7 @@ export class Cache extends EventEmitter {
    this.pipelineInFlight--;
    if (this.pipelineQueue.length > 0) {
     const next = this.pipelineQueue.shift();
-    if (next) setImmediate(next);
+    if (next) process.nextTick(next);
    }
   }
  }
