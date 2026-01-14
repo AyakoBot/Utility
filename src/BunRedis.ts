@@ -111,6 +111,11 @@ export class BunRedisWrapper {
   return Promise.resolve();
  }
 
+ async publish(channel: string, message: string): Promise<number> {
+  await this.ensureInit();
+  return this.client.publish(channel, message);
+ }
+
  on(_event: string, _handler: (...args: unknown[]) => void): this {
   return this;
  }
