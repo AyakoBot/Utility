@@ -44,6 +44,10 @@ export class Cache extends EventEmitter {
  readonly schedDbNum: number;
  readonly batcher: PipelineBatcher;
 
+ private pipelineInFlight = 0;
+ private readonly maxConcurrentPipelines = 10;
+ private pipelineQueue: Array<() => void> = [];
+
  readonly cacheDb: Redis;
  readonly cacheSub: Redis;
  readonly scheduleDb: Redis | null;
@@ -206,4 +210,27 @@ export class Cache extends EventEmitter {
   logger.silly('[Cache] Emitting expire event for:', eventName);
   this.emit('expire', { eventName, value: value ? JSON.parse(value) : null });
  };
+
+ async execPipeline<T>(
+  buildPipeline: (pipeline: ReturnType<Redis['pipeline']>) => void,
+ ): Promise<T> {
+  if (this.pipelineInFlight >= this.maxConcurrentPipelines) {
+   await new Promise<void>((resolve) => this.pipelineQueue.push(resolve));
+  }
+
+  this.pipelineInFlight++;
+  const pipeline = this.cacheDb.pipeline();
+  buildPipeline(pipeline);
+
+  try {
+   const result = await pipeline.exec();
+   return (result || []).map((r) => r[1]) as T;
+  } finally {
+   this.pipelineInFlight--;
+   if (this.pipelineQueue.length > 0) {
+    const next = this.pipelineQueue.shift();
+    if (next) next();
+   }
+  }
+ }
 }
