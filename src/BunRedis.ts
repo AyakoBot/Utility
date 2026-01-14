@@ -17,81 +17,9 @@ export type BunChainableCommander = {
  exec(): Promise<Array<[Error | null, unknown]> | null>;
 };
 
-const createPipeline = (client: RedisClient): BunChainableCommander => {
- const commands: Array<{ method: string; args: unknown[] }> = [];
-
- const pipeline: BunChainableCommander = {
-  commands,
-  set(key: string, value: string, ...args: unknown[]) {
-   commands.push({ method: 'set', args: [key, value, ...args] });
-   return this;
-  },
-  get(key: string) {
-   commands.push({ method: 'get', args: [key] });
-   return this;
-  },
-  del(...keys: string[]) {
-   commands.push({ method: 'del', args: keys });
-   return this;
-  },
-  hset(key: string, ...args: unknown[]) {
-   commands.push({ method: 'hset', args: [key, ...args] });
-   return this;
-  },
-  hget(key: string, field: string) {
-   commands.push({ method: 'hget', args: [key, field] });
-   return this;
-  },
-  hgetall(key: string) {
-   commands.push({ method: 'hgetall', args: [key] });
-   return this;
-  },
-  hkeys(key: string) {
-   commands.push({ method: 'hkeys', args: [key] });
-   return this;
-  },
-  hdel(key: string, ...fields: string[]) {
-   commands.push({ method: 'hdel', args: [key, ...fields] });
-   return this;
-  },
-  expire(key: string, seconds: number) {
-   commands.push({ method: 'expire', args: [key, seconds] });
-   return this;
-  },
-  hexpire(key: string, seconds: number, ...args: unknown[]) {
-   commands.push({ method: 'call', args: ['hexpire', key, seconds, ...args] });
-   return this;
-  },
-  eval(script: string, numKeys: number, ...args: unknown[]) {
-   commands.push({ method: 'eval', args: [script, numKeys, ...args] });
-   return this;
-  },
-  call(command: string, ...args: unknown[]) {
-   commands.push({ method: 'call', args: [command, ...args] });
-   return this;
-  },
-  async exec() {
-   if (commands.length === 0) return null;
-
-   const promises = commands.map(async (cmd) => {
-    try {
-     const method = cmd.method as keyof RedisClient;
-     const result = await (client[method] as (...args: unknown[]) => Promise<unknown>)(...cmd.args);
-     return [null, result] as [null, unknown];
-    } catch (err) {
-     return [err as Error, null] as [Error, null];
-    }
-   });
-
-   return Promise.all(promises);
-  },
- };
-
- return pipeline;
-};
-
 export class BunRedisWrapper {
  private client: RedisClient;
+ private initPromise: Promise<void> | null = null;
  readonly options: { db: number };
 
  constructor(options: { host?: string; db?: number } = {}) {
@@ -99,52 +27,80 @@ export class BunRedisWrapper {
   const db = options.db || 0;
   this.options = { db };
 
-  this.client = new RedisClient(`redis://${host}:6379/${db}`);
+  this.client = new RedisClient(`redis://${host}:6379`);
+
+  if (db !== 0) {
+   this.initPromise = this.client.send('SELECT', [String(db)]).then(() => {
+    this.initPromise = null;
+   });
+  }
+ }
+
+ private async ensureInit(): Promise<void> {
+  if (this.initPromise) {
+   await this.initPromise;
+  }
  }
 
  async get(key: string): Promise<string | null> {
+  await this.ensureInit();
   return this.client.get(key);
  }
 
- async set(key: string, value: string, ...args: unknown[]): Promise<'OK'> {
-  return this.client.set(key, value, ...(args as string[]));
+ async set(key: string, value: string, ...args: unknown[]): Promise<string | null> {
+  await this.ensureInit();
+  if (args.length === 0) {
+   return this.client.set(key, value);
+  }
+  return this.client.send('SET', [key, value, ...args.map(String)]) as Promise<string | null>;
  }
 
  async del(...keys: string[]): Promise<number> {
+  await this.ensureInit();
   if (keys.length === 0) return 0;
-  return this.client.del(...keys);
+  if (keys.length === 1) return this.client.del(keys[0]);
+  return this.client.send('DEL', keys) as Promise<number>;
  }
 
  async hset(key: string, field: string, value: unknown): Promise<number> {
+  await this.ensureInit();
   return this.client.hset(key, field, String(value));
  }
 
  async hget(key: string, field: string): Promise<string | null> {
+  await this.ensureInit();
   return this.client.hget(key, field);
  }
 
  async hgetall(key: string): Promise<Record<string, string>> {
+  await this.ensureInit();
   return this.client.hgetall(key) as Promise<Record<string, string>>;
  }
 
  async hkeys(key: string): Promise<string[]> {
+  await this.ensureInit();
   return this.client.hkeys(key);
  }
 
  async hdel(key: string, ...fields: string[]): Promise<number> {
-  return this.client.hdel(key, ...fields);
+  await this.ensureInit();
+  if (fields.length === 1) return this.client.hdel(key, fields[0]);
+  return this.client.send('HDEL', [key, ...fields]) as Promise<number>;
  }
 
  async expire(key: string, seconds: number): Promise<number> {
+  await this.ensureInit();
   return this.client.expire(key, seconds);
  }
 
  async eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown> {
-  return this.client.eval(script, numKeys, ...args);
+  await this.ensureInit();
+  return this.client.send('EVAL', [script, String(numKeys), ...args.map(String)]);
  }
 
  async call(command: string, ...args: unknown[]): Promise<unknown> {
-  return this.client.call(command, ...args);
+  await this.ensureInit();
+  return this.client.send(command, args.map(String));
  }
 
  config(_command: string, ..._args: unknown[]): Promise<unknown> {
@@ -164,16 +120,88 @@ export class BunRedisWrapper {
  }
 
  pipeline(): BunChainableCommander {
-  return createPipeline(this.client);
+  const { client } = this;
+  const ensureInit = this.ensureInit.bind(this);
+  const commands: Array<{ method: string; args: unknown[] }> = [];
+
+  const pipeline: BunChainableCommander = {
+   commands,
+   set(key: string, value: string, ...args: unknown[]) {
+    commands.push({ method: 'SET', args: [key, value, ...args] });
+    return this;
+   },
+   get(key: string) {
+    commands.push({ method: 'GET', args: [key] });
+    return this;
+   },
+   del(...keys: string[]) {
+    commands.push({ method: 'DEL', args: keys });
+    return this;
+   },
+   hset(key: string, ...args: unknown[]) {
+    commands.push({ method: 'HSET', args: [key, ...args] });
+    return this;
+   },
+   hget(key: string, field: string) {
+    commands.push({ method: 'HGET', args: [key, field] });
+    return this;
+   },
+   hgetall(key: string) {
+    commands.push({ method: 'HGETALL', args: [key] });
+    return this;
+   },
+   hkeys(key: string) {
+    commands.push({ method: 'HKEYS', args: [key] });
+    return this;
+   },
+   hdel(key: string, ...fields: string[]) {
+    commands.push({ method: 'HDEL', args: [key, ...fields] });
+    return this;
+   },
+   expire(key: string, seconds: number) {
+    commands.push({ method: 'EXPIRE', args: [key, seconds] });
+    return this;
+   },
+   hexpire(key: string, seconds: number, ...args: unknown[]) {
+    commands.push({ method: 'HEXPIRE', args: [key, seconds, ...args] });
+    return this;
+   },
+   eval(script: string, numKeys: number, ...args: unknown[]) {
+    commands.push({ method: 'EVAL', args: [script, numKeys, ...args] });
+    return this;
+   },
+   call(command: string, ...args: unknown[]) {
+    commands.push({ method: command, args });
+    return this;
+   },
+   async exec() {
+    if (commands.length === 0) return null;
+
+    await ensureInit();
+
+    const promises = commands.map(async (cmd) => {
+     try {
+      const result = await client.send(cmd.method, cmd.args.map(String));
+      return [null, result] as [null, unknown];
+     } catch (err) {
+      return [err as Error, null] as [Error, null];
+     }
+    });
+
+    return Promise.all(promises);
+   },
+  };
+
+  return pipeline;
  }
 
  async quit(): Promise<'OK'> {
-  await this.client.quit();
+  this.client.close();
   return 'OK';
  }
 
  async disconnect(): Promise<void> {
-  await this.client.quit();
+  this.client.close();
  }
 }
 
