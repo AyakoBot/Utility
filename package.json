@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun run tsc --emitDeclarationOnly && bun build src/index.ts --outdir dist --target bun",
-    "lint": "bunx eslint 'src/**/*.ts' --fix"
+    "build": "pnpm tsc --emitDeclarationOnly && swc src -d dist --strip-leading-paths",
+    "lint": "pnpx eslint 'src/**/*.ts' --fix"
   },
   "exports": {
     ".": "./dist/index.js"
