@@ -50,7 +50,7 @@ export class Cache extends EventEmitter {
 
  // @ts-expect-error -- This is used
  private recycleTimer: NodeJS.Timeout | null = null;
- private readonly recycleIntervalMs = 30 * 60 * 1000; // 30 minutes
+ private readonly recycleIntervalMs = 5 * 60 * 1000; // 5 minutes - aggressive preventive recycling
 
  cacheDb: Redis;
  readonly cacheSub: Redis;
