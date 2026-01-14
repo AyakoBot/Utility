@@ -83,7 +83,13 @@ export class PipelineBatcher {
 
   this.flushPromise = pipelineToExec
    .exec()
-   .then(() => {
+   .then((result) => {
+    if (result) {
+     for (let i = 0; i < result.length; i++) {
+      (result as unknown[])[i] = null;
+     }
+     result.length = 0;
+    }
     this.flushPromise = null;
     if (this.commandCount > 0) setImmediate(() => this.scheduleFlush());
    })

@@ -67,13 +67,15 @@ export class Cache extends EventEmitter {
   const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
   logger.log('[Cache] Using Redis host:', host);
 
-  this.cacheDb = new Redis({ host, db: cacheDbNum });
-  this.cacheSub = new Redis({ host, db: cacheDbNum });
+  const redisOptions = { host, db: cacheDbNum, dropBufferSupport: true };
+  this.cacheDb = new Redis(redisOptions);
+  this.cacheSub = new Redis(redisOptions);
   this.batcher = new PipelineBatcher(this);
 
   if (schedDbNum) {
-   this.scheduleDb = new Redis({ host, db: schedDbNum });
-   this.scheduleSub = new Redis({ host, db: schedDbNum });
+   const schedOptions = { host, db: schedDbNum, dropBufferSupport: true };
+   this.scheduleDb = new Redis(schedOptions);
+   this.scheduleSub = new Redis(schedOptions);
   } else {
    this.scheduleDb = null;
    this.scheduleSub = null;
@@ -224,12 +226,20 @@ export class Cache extends EventEmitter {
 
   try {
    const result = await pipeline.exec();
-   return (result || []).map((r) => r[1]) as T;
+   if (!result) return [] as T;
+
+   const values: unknown[] = [];
+   for (let i = 0; i < result.length; i++) {
+    values.push(result[i][1]);
+    (result as unknown[])[i] = null;
+   }
+   result.length = 0;
+   return values as T;
   } finally {
    this.pipelineInFlight--;
    if (this.pipelineQueue.length > 0) {
     const next = this.pipelineQueue.shift();
-    if (next) next();
+    if (next) setImmediate(next);
    }
   }
  }
