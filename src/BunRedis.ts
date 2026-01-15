@@ -17,20 +17,50 @@ export type BunChainableCommander = {
  exec(): Promise<Array<[Error | null, unknown]> | null>;
 };
 
+type QueuedRequest = {
+ method: string;
+ args: unknown[];
+ resolve: (value: unknown) => void;
+ reject: (error: Error) => void;
+ retries: number;
+};
+
 export class BunRedisWrapper {
  private client: RedisClient;
  private initPromise: Promise<void> | null = null;
+ private readonly host: string;
  readonly options: { db: number };
 
+ private requestQueue: QueuedRequest[] = [];
+ private processing = false;
+ private readonly maxRetries = 3;
+ private readonly timeoutMs = 5000;
+
  constructor(options: { host?: string; db?: number } = {}) {
-  const host = options.host || 'localhost';
+  this.host = options.host || 'localhost';
   const db = options.db || 0;
   this.options = { db };
 
-  this.client = new RedisClient(`redis://${host}:6379`);
+  this.client = new RedisClient(`redis://${this.host}:6379`);
 
   if (db !== 0) {
    this.initPromise = this.client.send('SELECT', [String(db)]).then(() => {
+    this.initPromise = null;
+   });
+  }
+ }
+
+ private reconnect(): void {
+  // eslint-disable-next-line no-console
+  console.log('[Redis] Reconnecting...');
+  try {
+   this.client.close();
+  } catch {
+   // ignore close errors
+  }
+  this.client = new RedisClient(`redis://${this.host}:6379`);
+  if (this.options.db !== 0) {
+   this.initPromise = this.client.send('SELECT', [String(this.options.db)]).then(() => {
     this.initPromise = null;
    });
   }
@@ -42,65 +72,112 @@ export class BunRedisWrapper {
   }
  }
 
+ private queueRequest(method: string, args: unknown[]): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+   this.requestQueue.push({ method, args, resolve, reject, retries: 0 });
+   if (this.requestQueue.length % 100 === 0) {
+    // eslint-disable-next-line no-console
+    console.log(`[Redis] Queue size: ${this.requestQueue.length}`);
+   }
+   this.processQueue();
+  });
+ }
+
+ private async processQueue(): Promise<void> {
+  if (this.processing || this.requestQueue.length === 0) return;
+
+  this.processing = true;
+
+  while (this.requestQueue.length > 0) {
+   const [request] = this.requestQueue;
+
+   try {
+    await this.ensureInit();
+    const result = await this.sendWithTimeout(request.method, request.args);
+    this.requestQueue.shift();
+    request.resolve(result);
+   } catch (err) {
+    const isTimeout = err instanceof Error && err.message.includes('timed out');
+
+    if (isTimeout && request.retries < this.maxRetries) {
+     request.retries++;
+     // eslint-disable-next-line no-console
+     console.log(`[Redis] Retry ${request.retries}/${this.maxRetries} for ${request.method}`);
+     this.reconnect();
+     await this.ensureInit();
+     continue;
+    }
+
+    this.requestQueue.shift();
+    request.reject(err as Error);
+   }
+  }
+
+  this.processing = false;
+ }
+
+ private async sendWithTimeout(method: string, args: unknown[]): Promise<unknown> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+   timeoutId = setTimeout(() => {
+    reject(new Error(`Redis ${method} timed out after ${this.timeoutMs}ms`));
+   }, this.timeoutMs);
+  });
+
+  try {
+   const result = await Promise.race([this.client.send(method, args.map(String)), timeoutPromise]);
+   clearTimeout(timeoutId);
+   return result;
+  } catch (err) {
+   clearTimeout(timeoutId);
+   throw err;
+  }
+ }
+
  async get(key: string): Promise<string | null> {
-  await this.ensureInit();
-  return this.client.get(key);
+  return this.queueRequest('GET', [key]) as Promise<string | null>;
  }
 
  async set(key: string, value: string, ...args: unknown[]): Promise<string | null> {
-  await this.ensureInit();
-  if (args.length === 0) {
-   return this.client.set(key, value);
-  }
-  return this.client.send('SET', [key, value, ...args.map(String)]) as Promise<string | null>;
+  return this.queueRequest('SET', [key, value, ...args]) as Promise<string | null>;
  }
 
  async del(...keys: string[]): Promise<number> {
-  await this.ensureInit();
   if (keys.length === 0) return 0;
-  if (keys.length === 1) return this.client.del(keys[0]);
-  return this.client.send('DEL', keys) as Promise<number>;
+  return this.queueRequest('DEL', keys) as Promise<number>;
  }
 
  async hset(key: string, field: string, value: unknown): Promise<number> {
-  await this.ensureInit();
-  return this.client.hset(key, field, String(value));
+  return this.queueRequest('HSET', [key, field, value]) as Promise<number>;
  }
 
  async hget(key: string, field: string): Promise<string | null> {
-  await this.ensureInit();
-  return this.client.hget(key, field);
+  return this.queueRequest('HGET', [key, field]) as Promise<string | null>;
  }
 
  async hgetall(key: string): Promise<Record<string, string>> {
-  await this.ensureInit();
-  return this.client.hgetall(key) as Promise<Record<string, string>>;
+  return this.queueRequest('HGETALL', [key]) as Promise<Record<string, string>>;
  }
 
  async hkeys(key: string): Promise<string[]> {
-  await this.ensureInit();
-  return this.client.hkeys(key);
+  return this.queueRequest('HKEYS', [key]) as Promise<string[]>;
  }
 
  async hdel(key: string, ...fields: string[]): Promise<number> {
-  await this.ensureInit();
-  if (fields.length === 1) return this.client.hdel(key, fields[0]);
-  return this.client.send('HDEL', [key, ...fields]) as Promise<number>;
+  return this.queueRequest('HDEL', [key, ...fields]) as Promise<number>;
  }
 
  async expire(key: string, seconds: number): Promise<number> {
-  await this.ensureInit();
-  return this.client.expire(key, seconds);
+  return this.queueRequest('EXPIRE', [key, seconds]) as Promise<number>;
  }
 
  async eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown> {
-  await this.ensureInit();
-  return this.client.send('EVAL', [script, String(numKeys), ...args.map(String)]);
+  return this.queueRequest('EVAL', [script, numKeys, ...args]);
  }
 
  async call(command: string, ...args: unknown[]): Promise<unknown> {
-  await this.ensureInit();
-  return this.client.send(command, args.map(String));
+  return this.queueRequest(command, args);
  }
 
  config(_command: string, ..._args: unknown[]): Promise<unknown> {
@@ -112,8 +189,7 @@ export class BunRedisWrapper {
  }
 
  async publish(channel: string, message: string): Promise<number> {
-  await this.ensureInit();
-  return this.client.publish(channel, message);
+  return this.queueRequest('PUBLISH', [channel, message]) as Promise<number>;
  }
 
  on(_event: string, _handler: (...args: unknown[]) => void): this {
@@ -125,8 +201,7 @@ export class BunRedisWrapper {
  }
 
  pipeline(): BunChainableCommander {
-  const { client } = this;
-  const ensureInit = this.ensureInit.bind(this);
+  const wrapper = this;
   const commands: Array<{ method: string; args: unknown[] }> = [];
 
   const pipeline: BunChainableCommander = {
@@ -182,29 +257,11 @@ export class BunRedisWrapper {
    async exec() {
     if (commands.length === 0) return null;
 
-    await ensureInit();
-
-    const sendWithTimeout = async (method: string, args: unknown[], timeoutMs = 5000) => {
-     let timeoutId: ReturnType<typeof setTimeout> | undefined;
-     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error(`Redis ${method} timed out after ${timeoutMs}ms`)), timeoutMs);
-     });
-
-     try {
-      const result = await Promise.race([client.send(method, args.map(String)), timeoutPromise]);
-      clearTimeout(timeoutId);
-      return result;
-     } catch (err) {
-      clearTimeout(timeoutId);
-      throw err;
-     }
-    };
-
     const results: Array<[Error | null, unknown]> = [];
 
     for (const cmd of commands) {
      try {
-      const result = await sendWithTimeout(cmd.method, cmd.args);
+      const result = await wrapper.queueRequest(cmd.method, cmd.args);
       results.push([null, result]);
      } catch (err) {
       // eslint-disable-next-line no-console
