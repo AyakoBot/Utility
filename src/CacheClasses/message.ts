@@ -71,12 +71,12 @@ export default class MessageCache extends Cache<APIMessage> {
   if (!rData) return false;
   if (!rData.guild_id || !rData.channel_id || !rData.id) return false;
 
-  await this.setValue(rData, [rData.guild_id], [rData.channel_id, rData.id], 1209600);
+  await this.setValue(rData, [rData.guild_id, rData.channel_id], [rData.id], 1209600);
   return true;
  }
 
- async get(channelId: string, messageId: string) {
-  return super.get(channelId, messageId);
+ async get(messageId: string) {
+  return super.get(messageId);
  }
 
  apiToR(data: APIMessage, guildId: string | '@me') {
