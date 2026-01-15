@@ -165,6 +165,8 @@ export class BunRedisWrapper {
  }
 
  async hdel(key: string, ...fields: string[]): Promise<number> {
+  // eslint-disable-next-line no-console
+  console.log(`[Redis] HDEL key=${key} fields=${JSON.stringify(fields)}`);
   return this.queueRequest('HDEL', [key, ...fields]) as Promise<number>;
  }
 
@@ -235,6 +237,8 @@ export class BunRedisWrapper {
     return this;
    },
    hdel(key: string, ...fields: string[]) {
+    // eslint-disable-next-line no-console
+    console.log(`[Redis] pipeline.HDEL key=${key} fields=${JSON.stringify(fields)}`);
     commands.push({ method: 'HDEL', args: [key, ...fields] });
     return this;
    },
@@ -243,6 +247,8 @@ export class BunRedisWrapper {
     return this;
    },
    hexpire(key: string, seconds: number, ...args: unknown[]) {
+    // eslint-disable-next-line no-console
+    console.log(`[Redis] pipeline.HEXPIRE key=${key} seconds=${seconds} args=${JSON.stringify(args)}`);
     commands.push({ method: 'HEXPIRE', args: [key, seconds, ...args] });
     return this;
    },
@@ -251,6 +257,10 @@ export class BunRedisWrapper {
     return this;
    },
    call(command: string, ...args: unknown[]) {
+    if (command.toLowerCase() === 'hexpire' || command.toLowerCase() === 'hdel') {
+     // eslint-disable-next-line no-console
+     console.log(`[Redis] pipeline.call ${command.toUpperCase()} args=${JSON.stringify(args)}`);
+    }
     commands.push({ method: command, args });
     return this;
    },
