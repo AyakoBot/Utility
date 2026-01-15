@@ -68,7 +68,15 @@ export class BunRedisWrapper {
 
  private async ensureInit(): Promise<void> {
   if (this.initPromise) {
-   await this.initPromise;
+   // eslint-disable-next-line no-console
+   console.log('[Redis] ensureInit: waiting for SELECT...');
+   const start = Date.now();
+   const timeout = new Promise<void>((_, reject) =>
+    setTimeout(() => reject(new Error('Redis init timed out')), this.timeoutMs),
+   );
+   await Promise.race([this.initPromise, timeout]);
+   // eslint-disable-next-line no-console
+   console.log(`[Redis] ensureInit: SELECT complete in ${Date.now() - start}ms`);
   }
  }
 
@@ -87,17 +95,29 @@ export class BunRedisWrapper {
   if (this.processing || this.requestQueue.length === 0) return;
 
   this.processing = true;
+  // eslint-disable-next-line no-console
+  console.log(`[Redis] processQueue: starting, queue size: ${this.requestQueue.length}`);
 
   while (this.requestQueue.length > 0) {
    const [request] = this.requestQueue;
 
    try {
+    // eslint-disable-next-line no-console
+    console.log(`[Redis] processQueue: ensureInit for ${request.method}...`);
     await this.ensureInit();
+    // eslint-disable-next-line no-console
+    console.log(`[Redis] processQueue: sendWithTimeout for ${request.method}...`);
     const result = await this.sendWithTimeout(request.method, request.args);
+    // eslint-disable-next-line no-console
+    console.log(`[Redis] processQueue: ${request.method} complete`);
     this.requestQueue.shift();
     request.resolve(result);
    } catch (err) {
     const isTimeout = err instanceof Error && err.message.includes('timed out');
+    // eslint-disable-next-line no-console
+    console.log(
+     `[Redis] processQueue: ${request.method} error: ${(err as Error).message}, isTimeout: ${isTimeout}`,
+    );
 
     if (isTimeout && request.retries < this.maxRetries) {
      request.retries++;
@@ -113,24 +133,39 @@ export class BunRedisWrapper {
    }
   }
 
+  // eslint-disable-next-line no-console
+  console.log('[Redis] processQueue: done');
   this.processing = false;
  }
 
  private async sendWithTimeout(method: string, args: unknown[]): Promise<unknown> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const start = Date.now();
 
   const timeoutPromise = new Promise<never>((_, reject) => {
    timeoutId = setTimeout(() => {
+    // eslint-disable-next-line no-console
+    console.log(
+     `[Redis] sendWithTimeout: TIMEOUT fired for ${method} after ${Date.now() - start}ms`,
+    );
     reject(new Error(`Redis ${method} timed out after ${this.timeoutMs}ms`));
    }, this.timeoutMs);
   });
 
   try {
+   // eslint-disable-next-line no-console
+   console.log(`[Redis] sendWithTimeout: calling client.send(${method})...`);
    const result = await Promise.race([this.client.send(method, args.map(String)), timeoutPromise]);
    clearTimeout(timeoutId);
+   // eslint-disable-next-line no-console
+   console.log(`[Redis] sendWithTimeout: ${method} returned in ${Date.now() - start}ms`);
    return result;
   } catch (err) {
    clearTimeout(timeoutId);
+   // eslint-disable-next-line no-console
+   console.log(
+    `[Redis] sendWithTimeout: ${method} threw after ${Date.now() - start}ms: ${(err as Error).message}`,
+   );
    throw err;
   }
  }
@@ -258,20 +293,18 @@ export class BunRedisWrapper {
    async exec() {
     if (commands.length === 0) return null;
 
-    const results: Array<[Error | null, unknown]> = [];
+    const promises = commands.map((cmd) =>
+     wrapper
+      .queueRequest(cmd.method, cmd.args)
+      .then((result): [Error | null, unknown] => [null, result])
+      .catch((err): [Error | null, unknown] => {
+       // eslint-disable-next-line no-console
+       console.error(`[Redis] Command ${cmd.method} failed:`, err);
+       return [err as Error, null];
+      }),
+    );
 
-    for (const cmd of commands) {
-     try {
-      const result = await wrapper.queueRequest(cmd.method, cmd.args);
-      results.push([null, result]);
-     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(`[Redis] Command ${cmd.method} failed:`, err);
-      results.push([err as Error, null]);
-     }
-    }
-
-    return results;
+    return Promise.all(promises);
    },
   };
 
