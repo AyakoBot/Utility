@@ -144,6 +144,8 @@ export class BunRedisWrapper {
  }
 
  async del(...keys: string[]): Promise<number> {
+  // eslint-disable-next-line no-console
+  console.log(`[Redis] DEL keys=${JSON.stringify(keys)}`);
   if (keys.length === 0) return 0;
   return this.queueRequest('DEL', keys) as Promise<number>;
  }
@@ -217,6 +219,8 @@ export class BunRedisWrapper {
     return this;
    },
    del(...keys: string[]) {
+    // eslint-disable-next-line no-console
+    console.log(`[Redis] pipeline.DEL keys=${JSON.stringify(keys)}`);
     commands.push({ method: 'DEL', args: keys });
     return this;
    },
