@@ -184,22 +184,33 @@ export class BunRedisWrapper {
 
     await ensureInit();
 
-    const results: Array<[Error | null, unknown]> = [];
-    const batchSize = 100;
+    const sendWithTimeout = async (method: string, args: unknown[], timeoutMs = 5000) => {
+     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+     const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(`Redis ${method} timed out after ${timeoutMs}ms`)), timeoutMs);
+     });
 
-    for (let i = 0; i < commands.length; i += batchSize) {
-     const batch = commands.slice(i, i + batchSize);
-     const batchResults = await Promise.all(
-      batch.map(async (cmd) => {
-       try {
-        const result = await client.send(cmd.method, cmd.args.map(String));
-        return [null, result] as [null, unknown];
-       } catch (err) {
-        return [err as Error, null] as [Error, null];
-       }
-      }),
-     );
-     results.push(...batchResults);
+     try {
+      const result = await Promise.race([client.send(method, args.map(String)), timeoutPromise]);
+      clearTimeout(timeoutId);
+      return result;
+     } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+     }
+    };
+
+    const results: Array<[Error | null, unknown]> = [];
+
+    for (const cmd of commands) {
+     try {
+      const result = await sendWithTimeout(cmd.method, cmd.args);
+      results.push([null, result]);
+     } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[Redis] Command ${cmd.method} failed:`, err);
+      results.push([err as Error, null]);
+     }
     }
 
     return results;
