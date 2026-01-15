@@ -25,21 +25,28 @@ type QueuedRequest = {
  retries: number;
 };
 
+let instanceCounter = 0;
+
 export class BunRedisWrapper {
  private client: RedisClient;
  private initPromise: Promise<void> | null = null;
  private readonly host: string;
  readonly options: { db: number };
+ private readonly instanceId: number;
 
  private requestQueue: QueuedRequest[] = [];
  private processing = false;
  private readonly maxRetries = 1;
  private readonly timeoutMs = 5000;
+ private readonly slowThresholdMs = 100;
 
  constructor(options: { host?: string; db?: number } = {}) {
+  this.instanceId = instanceCounter++;
   this.host = options.host || 'localhost';
   const db = options.db || 0;
   this.options = { db };
+  // eslint-disable-next-line no-console
+  console.log(`[Redis#${this.instanceId}] Created instance for db ${db}`);
 
   this.client = new RedisClient(`redis://${this.host}:6379`);
 
@@ -68,15 +75,16 @@ export class BunRedisWrapper {
 
  private async ensureInit(): Promise<void> {
   if (this.initPromise) {
-   // eslint-disable-next-line no-console
-   console.log('[Redis] ensureInit: waiting for SELECT...');
    const start = Date.now();
    const timeout = new Promise<void>((_, reject) =>
     setTimeout(() => reject(new Error('Redis init timed out')), this.timeoutMs),
    );
    await Promise.race([this.initPromise, timeout]);
-   // eslint-disable-next-line no-console
-   console.log(`[Redis] ensureInit: SELECT complete in ${Date.now() - start}ms`);
+   const elapsed = Date.now() - start;
+   if (elapsed > this.slowThresholdMs) {
+    // eslint-disable-next-line no-console
+    console.log(`[Redis#${this.instanceId}] SLOW ensureInit: ${elapsed}ms`);
+   }
   }
  }
 
@@ -85,7 +93,7 @@ export class BunRedisWrapper {
    this.requestQueue.push({ method, args, resolve, reject, retries: 0 });
    if (this.requestQueue.length % 100 === 0) {
     // eslint-disable-next-line no-console
-    console.log(`[Redis] Queue size: ${this.requestQueue.length}`);
+    console.log(`[Redis#${this.instanceId}] Queue size: ${this.requestQueue.length}`);
    }
    this.processQueue();
   });
@@ -95,34 +103,32 @@ export class BunRedisWrapper {
   if (this.processing || this.requestQueue.length === 0) return;
 
   this.processing = true;
-  // eslint-disable-next-line no-console
-  console.log(`[Redis] processQueue: starting, queue size: ${this.requestQueue.length}`);
 
   while (this.requestQueue.length > 0) {
    const [request] = this.requestQueue;
+   const cmdStart = Date.now();
 
    try {
-    // eslint-disable-next-line no-console
-    console.log(`[Redis] processQueue: ensureInit for ${request.method}...`);
     await this.ensureInit();
-    // eslint-disable-next-line no-console
-    console.log(`[Redis] processQueue: sendWithTimeout for ${request.method}...`);
     const result = await this.sendWithTimeout(request.method, request.args);
-    // eslint-disable-next-line no-console
-    console.log(`[Redis] processQueue: ${request.method} complete`);
+    const elapsed = Date.now() - cmdStart;
+    if (elapsed > this.slowThresholdMs) {
+     // eslint-disable-next-line no-console
+     console.log(`[Redis#${this.instanceId}] SLOW ${request.method}: ${elapsed}ms`);
+    }
     this.requestQueue.shift();
     request.resolve(result);
    } catch (err) {
     const isTimeout = err instanceof Error && err.message.includes('timed out');
     // eslint-disable-next-line no-console
     console.log(
-     `[Redis] processQueue: ${request.method} error: ${(err as Error).message}, isTimeout: ${isTimeout}`,
+     `[Redis#${this.instanceId}] ERROR ${request.method}: ${(err as Error).message}, isTimeout: ${isTimeout}`,
     );
 
     if (isTimeout && request.retries < this.maxRetries) {
      request.retries++;
      // eslint-disable-next-line no-console
-     console.log(`[Redis] Retry ${request.retries}/${this.maxRetries} for ${request.method}`);
+     console.log(`[Redis#${this.instanceId}] Retry ${request.retries}/${this.maxRetries} for ${request.method}`);
      this.reconnect();
      await this.ensureInit();
      continue;
@@ -133,39 +139,26 @@ export class BunRedisWrapper {
    }
   }
 
-  // eslint-disable-next-line no-console
-  console.log('[Redis] processQueue: done');
   this.processing = false;
  }
 
  private async sendWithTimeout(method: string, args: unknown[]): Promise<unknown> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const start = Date.now();
 
   const timeoutPromise = new Promise<never>((_, reject) => {
    timeoutId = setTimeout(() => {
     // eslint-disable-next-line no-console
-    console.log(
-     `[Redis] sendWithTimeout: TIMEOUT fired for ${method} after ${Date.now() - start}ms`,
-    );
+    console.log(`[Redis#${this.instanceId}] TIMEOUT ${method} after ${this.timeoutMs}ms`);
     reject(new Error(`Redis ${method} timed out after ${this.timeoutMs}ms`));
    }, this.timeoutMs);
   });
 
   try {
-   // eslint-disable-next-line no-console
-   console.log(`[Redis] sendWithTimeout: calling client.send(${method})...`);
    const result = await Promise.race([this.client.send(method, args.map(String)), timeoutPromise]);
    clearTimeout(timeoutId);
-   // eslint-disable-next-line no-console
-   console.log(`[Redis] sendWithTimeout: ${method} returned in ${Date.now() - start}ms`);
    return result;
   } catch (err) {
    clearTimeout(timeoutId);
-   // eslint-disable-next-line no-console
-   console.log(
-    `[Redis] sendWithTimeout: ${method} threw after ${Date.now() - start}ms: ${(err as Error).message}`,
-   );
    throw err;
   }
  }
