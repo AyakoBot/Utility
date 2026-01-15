@@ -3,7 +3,7 @@ import type { APIApplicationCommandPermission } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RCommandPermission = APIApplicationCommandPermission & {
  guild_id: string;
@@ -21,8 +21,8 @@ export const RCommandPermissionKeys = [
 export default class CommandPermissionCache extends Cache<APIApplicationCommandPermission> {
  public keys = RCommandPermissionKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'command-permissions');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'command-permissions', queueFn);
  }
 
  async set(data: APIApplicationCommandPermission, guildId: string, commandId: string) {

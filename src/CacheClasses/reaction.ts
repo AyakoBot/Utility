@@ -3,7 +3,7 @@ import type { APIReaction } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RReaction = APIReaction & { guild_id: string; channel_id: string; message_id: string };
 
@@ -21,8 +21,8 @@ export const RReactionKeys = [
 export default class ReactionCache extends Cache<APIReaction> {
  public keys = RReactionKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'reactions');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'reactions', queueFn);
  }
 
  async set(data: APIReaction, guildId: string, channelId: string, messageId: string) {

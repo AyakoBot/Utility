@@ -3,7 +3,7 @@ import type { APIApplicationCommand } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RCommand = Omit<APIApplicationCommand, 'guild_id'>;
 
@@ -31,8 +31,8 @@ export const RCommandKeys = [
 export default class CommandCache extends Cache<APIApplicationCommand> {
  public keys = RCommandKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'global-commands');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'global-commands', queueFn);
  }
 
  async set(data: APIApplicationCommand) {

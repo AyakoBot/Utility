@@ -3,7 +3,7 @@ import type { APIGuildMember } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RMember = Omit<APIGuildMember, 'user' | 'avatar' | 'banner'> & {
  user_id: string;
@@ -32,8 +32,8 @@ export const RMemberKeys = [
 export default class MemberCache extends Cache<APIGuildMember> {
  public keys = RMemberKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'members');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'members', queueFn);
  }
 
  public static bannerUrl(banner: string, userId: string, guildId: string) {

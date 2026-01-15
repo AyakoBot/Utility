@@ -3,7 +3,7 @@ import type { APIAutoModerationRule } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RAutomod = APIAutoModerationRule;
 
@@ -24,8 +24,8 @@ export const RAutomodKeys = [
 export default class AutomodCache extends Cache<APIAutoModerationRule> {
  public keys = RAutomodKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'automods');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'automods', queueFn);
  }
 
  async set(data: APIAutoModerationRule) {

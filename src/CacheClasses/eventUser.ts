@@ -6,7 +6,7 @@ import type {
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type REventUser = Omit<APIGuildScheduledEventUser, 'user' | 'member'> & {
  user_id: string;
@@ -17,8 +17,8 @@ export const REventUserKeys = ['guild_scheduled_event_id', 'user_id'] as const;
 export default class EventUserCache extends Cache<APIGuildScheduledEventUser> {
  public keys = REventUserKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'event-users');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'event-users', queueFn);
  }
 
  async set(

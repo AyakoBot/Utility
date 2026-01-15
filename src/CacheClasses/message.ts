@@ -3,7 +3,7 @@ import type { APIMessage, APIMessageSnapshotFields } from 'discord-api-types/v10
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RMessage = Omit<
  APIMessage,
@@ -62,8 +62,8 @@ export const RMessageKeys = [
 export default class MessageCache extends Cache<APIMessage> {
  public keys = RMessageKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'messages');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'messages', queueFn);
  }
 
  async set(data: APIMessage, guildId: string) {

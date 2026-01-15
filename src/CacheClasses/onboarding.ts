@@ -3,7 +3,7 @@ import type { APIGuildOnboarding } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type ROnboarding = APIGuildOnboarding;
 
@@ -12,8 +12,8 @@ export const ROnboardingKeys = ['guild_id', 'prompts', 'default_channel_ids', 'm
 export default class OnboardingCache extends Cache<APIGuildOnboarding> {
  public keys = ROnboardingKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'onboarding');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'onboarding', queueFn);
  }
 
  async set(data: APIGuildOnboarding) {

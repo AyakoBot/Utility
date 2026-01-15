@@ -30,6 +30,8 @@ import type {
 
 import type BunRedisWrapper from '../../BunRedis.js';
 import type { BunChainableCommander } from '../../BunRedis.js';
+
+export type QueueFn = (addToPipeline: (pipeline: BunChainableCommander) => void) => void;
 import type { RAuditLog } from '../auditlog.js';
 import type { RAutomod } from '../automod.js';
 import type { RBan } from '../ban.js';
@@ -230,12 +232,14 @@ export default abstract class Cache<
  private keystorePrefix: string;
  private historyPrefix: string;
  public redis: BunRedisWrapper;
+ private queueFn?: QueueFn;
 
- constructor(redis: BunRedisWrapper, type: string) {
+ constructor(redis: BunRedisWrapper, type: string, queueFn?: QueueFn) {
   this.prefix = `cache:${type}`;
   this.historyPrefix = `history:${type}`;
   this.keystorePrefix = `keystore:${type}`;
   this.redis = redis;
+  this.queueFn = queueFn;
  }
 
  stringToData = (data: string | null) => (data ? (JSON.parse(data) as DeriveRFromAPI<T, K>) : null);
@@ -307,6 +311,14 @@ export default abstract class Cache<
   if (pipeline) {
    pipeline.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
    if (keystoreIds.length > 0) this.setKeystore(pipeline, ttl, keystoreIds, ids);
+   return null;
+  }
+
+  if (this.queueFn) {
+   this.queueFn((p) => {
+    p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
+    if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
+   });
    return null;
   }
 

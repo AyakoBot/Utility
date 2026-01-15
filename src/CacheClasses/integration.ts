@@ -3,7 +3,7 @@ import type { APIGuildIntegration } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RIntegration = Omit<APIGuildIntegration, 'user'> & {
  user_id: string | null;
@@ -32,8 +32,8 @@ export default class IntegrationCache extends Cache<
 > {
  public keys: ReadonlyArray<keyof RIntegration> = RIntegrationKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'integrations');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'integrations', queueFn);
  }
 
  async set(data: APIGuildIntegration, guildId: string) {

@@ -3,7 +3,7 @@ import type { APIThreadChannel } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RThread = Pick<
  APIThreadChannel,
@@ -51,8 +51,8 @@ export default class ThreadCache extends Cache<
 > {
  public keys = RThreadKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'threads');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'threads', queueFn);
  }
 
  async set(data: Omit<APIThreadChannel, 'position'>) {

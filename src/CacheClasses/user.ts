@@ -3,7 +3,7 @@ import type { APIUser } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RUser = Omit<APIUser, 'avatar_decoration_data' | 'avatar' | 'banner'> & {
  avatar_decoration_data?: { asset_url: string; sku_id: string };
@@ -30,8 +30,8 @@ const RUserKeys = [
 export default class UserCache extends Cache<APIUser> {
  public keys = RUserKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'users');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'users', queueFn);
  }
 
  public static assetUrl(asset: string) {

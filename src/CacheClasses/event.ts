@@ -3,7 +3,7 @@ import type { APIGuildScheduledEvent } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type REvent = Omit<APIGuildScheduledEvent, 'creator' | 'image'> & {
  image_url: string | null;
@@ -37,8 +37,8 @@ export default class EventCache extends Cache<APIGuildScheduledEvent> {
   return `https://cdn.discordapp.com/guild-events/${guildId}/${hash}.${hash.startsWith('a_') ? 'gif' : 'webp'}`;
  }
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'events');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'events', queueFn);
  }
 
  async set(data: APIGuildScheduledEvent) {

@@ -4,7 +4,7 @@ import type { APIApplicationCommand } from 'discord-api-types/v10';
 import type BunRedisWrapper from '../BunRedis.js';
 import type { MakeRequired } from '../Types/index.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RGuildCommand = MakeRequired<APIApplicationCommand, 'guild_id'>;
 
@@ -36,8 +36,8 @@ export default class GuildCommandCache extends Cache<
 > {
  public keys = RGuildCommandKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'guild-commands');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'guild-commands', queueFn);
  }
 
  async set(data: APIApplicationCommand & { guild_id: string }) {

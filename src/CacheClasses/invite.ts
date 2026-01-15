@@ -3,7 +3,7 @@ import type { APIExtendedInvite, APIInvite } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RInvite = Omit<
  APIExtendedInvite,
@@ -41,8 +41,8 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
  public keys = RInviteKeys;
  private codestorePrefix: string;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'invites');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'invites', queueFn);
   this.codestorePrefix = 'codestore:invites';
  }
 

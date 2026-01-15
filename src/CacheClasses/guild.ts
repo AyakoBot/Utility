@@ -3,7 +3,7 @@ import type { APIGuild } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RGuild = Omit<
  APIGuild,
@@ -79,8 +79,8 @@ export default class GuildCache extends Cache<APIGuild> {
   return `https://cdn.discordapp.com/banners/${guildId}/${hash}.${hash.startsWith('a_') ? 'gif' : 'webp'}`;
  }
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'guilds');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'guilds', queueFn);
  }
 
  async set(data: APIGuild) {

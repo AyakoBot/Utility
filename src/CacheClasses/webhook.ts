@@ -3,7 +3,7 @@ import type { APIWebhook } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RWebhook = Omit<APIWebhook, 'user' | 'avatar' | 'guild_id'> & {
  user_id: string | null;
@@ -31,8 +31,8 @@ export default class WebhookCache extends Cache<
 > {
  public keys = RWebhookKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'webhooks');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'webhooks', queueFn);
  }
 
  public static avatarUrl(avatar: string, webhookId: string) {

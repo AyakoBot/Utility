@@ -3,7 +3,7 @@ import type { APIRole } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RRole = Omit<APIRole, 'icon'> & { icon_url: string | null; guild_id: string };
 
@@ -27,8 +27,8 @@ export const RRoleKeys = [
 export default class RoleCache extends Cache<APIRole> {
  public keys = RRoleKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'roles');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'roles', queueFn);
  }
 
  public static iconUrl(icon: string, roleId: string) {

@@ -3,7 +3,7 @@ import type { APIVoiceState } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RVoiceState = Omit<APIVoiceState, 'member' | 'guild_id'> & { guild_id: string };
 
@@ -25,8 +25,8 @@ export const RVoiceStateKeys = [
 export default class VoiceCache extends Cache<APIVoiceState> {
  public keys = RVoiceStateKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'voices');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'voices', queueFn);
  }
 
  async set(data: APIVoiceState) {

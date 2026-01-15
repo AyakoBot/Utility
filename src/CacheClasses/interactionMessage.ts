@@ -3,7 +3,7 @@ import type { APIMessage } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 import MessageCache, { type RMessage, RMessageKeys } from './message.js';
 
 export type RInteractionMessage = RMessage & {
@@ -20,8 +20,8 @@ export const RInteractionMessageKeys = [
 export default class InteractionMessageCache extends Cache<APIMessage> {
  public keys = RInteractionMessageKeys as unknown as typeof RMessageKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'interactions');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'interactions', queueFn);
  }
 
  async set() {

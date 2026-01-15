@@ -3,7 +3,7 @@ import type { APIGuildWelcomeScreen } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RWelcomeScreen = APIGuildWelcomeScreen;
 
@@ -12,8 +12,8 @@ export const RWelcomeScreenKeys = ['description', 'welcome_channels'] as const;
 export default class WelcomeScreenCache extends Cache<APIGuildWelcomeScreen> {
  public keys = RWelcomeScreenKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'welcome-screens');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'welcome-screens', queueFn);
  }
 
  async set(data: APIGuildWelcomeScreen, guildId: string) {

@@ -3,7 +3,7 @@ import type { APIAuditLogEntry } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RAuditLog = APIAuditLogEntry & { guild_id: string };
 
@@ -21,8 +21,8 @@ export const RAuditLogKeys = [
 export default class AuditLogCache extends Cache<APIAuditLogEntry> {
  public keys = RAuditLogKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'auditlogs');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'auditlogs', queueFn);
  }
 
  async set(data: APIAuditLogEntry, guildId: string) {

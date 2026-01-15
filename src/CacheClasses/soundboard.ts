@@ -3,7 +3,7 @@ import type { APISoundboardSound } from 'discord-api-types/v10';
 
 import type BunRedisWrapper from '../BunRedis.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RSoundboardSound = Omit<APISoundboardSound, 'user' | 'guild_id'> & {
  user_id: string | null;
@@ -24,8 +24,8 @@ export const RSoundboardSoundKeys = [
 export default class SoundboardCache extends Cache<APISoundboardSound> {
  public keys = RSoundboardSoundKeys;
 
- constructor(redis: BunRedisWrapper) {
-  super(redis, 'soundboards');
+ constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+  super(redis, 'soundboards', queueFn);
  }
 
  async set(data: APISoundboardSound) {
