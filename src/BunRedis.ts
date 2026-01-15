@@ -184,16 +184,25 @@ export class BunRedisWrapper {
 
     await ensureInit();
 
-    const promises = commands.map(async (cmd) => {
-     try {
-      const result = await client.send(cmd.method, cmd.args.map(String));
-      return [null, result] as [null, unknown];
-     } catch (err) {
-      return [err as Error, null] as [Error, null];
-     }
-    });
+    const results: Array<[Error | null, unknown]> = [];
+    const batchSize = 100;
 
-    return Promise.all(promises);
+    for (let i = 0; i < commands.length; i += batchSize) {
+     const batch = commands.slice(i, i + batchSize);
+     const batchResults = await Promise.all(
+      batch.map(async (cmd) => {
+       try {
+        const result = await client.send(cmd.method, cmd.args.map(String));
+        return [null, result] as [null, unknown];
+       } catch (err) {
+        return [err as Error, null] as [Error, null];
+       }
+      }),
+     );
+     results.push(...batchResults);
+    }
+
+    return results;
    },
   };
 

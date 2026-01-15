@@ -47,6 +47,7 @@ export class Cache extends EventEmitter {
  private pipelineQueue: Array<() => void> = [];
  private pendingCommands: Array<(p: BunChainableCommander) => void> = [];
  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+ private flushing = false;
 
  cacheDb: BunRedisWrapper;
  readonly cacheSub: BunRedisWrapper;
@@ -164,7 +165,7 @@ export class Cache extends EventEmitter {
  queueSync(addToPipeline: (pipeline: BunChainableCommander) => void): void {
   this.pendingCommands.push(addToPipeline);
 
-  if (!this.flushTimer) {
+  if (!this.flushTimer && !this.flushing) {
    this.flushTimer = setTimeout(() => this.flushPendingCommands(), 10);
   }
 
@@ -176,24 +177,34 @@ export class Cache extends EventEmitter {
  private async flushPendingCommands(): Promise<void> {
   this.flushTimer = null;
 
-  const commands = this.pendingCommands;
-  this.pendingCommands = [];
+  if (this.flushing) return;
+  this.flushing = true;
 
-  if (commands.length === 0) return;
-
-  logger.log(`[Cache] Flushing ${commands.length} commands in single pipeline`);
-
-  const pipeline = this.cacheDb.pipeline();
-  for (const addCmd of commands) {
-   addCmd(pipeline);
-  }
-
-  const startTime = Date.now();
   try {
-   await pipeline.exec();
-   logger.log(`[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`);
-  } catch (err) {
-   logger.error('[Redis] Flush error:', err);
+   while (this.pendingCommands.length > 0) {
+    const commands = this.pendingCommands;
+    this.pendingCommands = [];
+
+    logger.log(`[Cache] Flushing ${commands.length} commands in single pipeline`);
+
+    const pipeline = this.cacheDb.pipeline();
+    for (const addCmd of commands) {
+     addCmd(pipeline);
+    }
+
+    const startTime = Date.now();
+    try {
+     await pipeline.exec();
+     logger.log(`[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`);
+    } catch (err) {
+     logger.error('[Redis] Flush error:', err);
+    }
+   }
+  } finally {
+   this.flushing = false;
+   if (this.pendingCommands.length > 0) {
+    this.flushTimer = setTimeout(() => this.flushPendingCommands(), 10);
+   }
   }
  }
 
