@@ -50,6 +50,7 @@ export class Cache extends EventEmitter {
  private flushing = false;
 
  cacheDb: BunRedisWrapper;
+ readonly cachePub: BunRedisWrapper;
  readonly cacheSub: BunRedisWrapper;
  readonly scheduleDb: BunRedisWrapper | null;
  readonly scheduleSub: BunRedisWrapper | null;
@@ -70,6 +71,7 @@ export class Cache extends EventEmitter {
 
   const redisOptions = { host, db: cacheDbNum };
   this.cacheDb = new BunRedisWrapper(redisOptions);
+  this.cachePub = new BunRedisWrapper(redisOptions);
   this.cacheSub = new BunRedisWrapper(redisOptions);
 
   if (schedDbNum) {
