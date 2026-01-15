@@ -45,8 +45,8 @@ export class Cache extends EventEmitter {
  private pipelineInFlight = 0;
  private readonly maxConcurrentPipelines = 10;
  private pipelineQueue: Array<() => void> = [];
- private workQueue: Array<() => Promise<void>> = [];
- private processingQueue = false;
+ private pendingCommands: Array<(p: BunChainableCommander) => void> = [];
+ private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
  cacheDb: BunRedisWrapper;
  readonly cacheSub: BunRedisWrapper;
@@ -162,26 +162,39 @@ export class Cache extends EventEmitter {
  };
 
  queueSync(addToPipeline: (pipeline: BunChainableCommander) => void): void {
-  this.workQueue.push(async () => {
-   const pipeline = this.cacheDb.pipeline();
-   addToPipeline(pipeline);
-   await pipeline.exec();
-  });
-  this.processQueue();
- }
+  this.pendingCommands.push(addToPipeline);
 
- private async processQueue(): Promise<void> {
-  if (this.processingQueue) return;
-  this.processingQueue = true;
-
-  while (this.workQueue.length > 0) {
-   const batch = this.workQueue.splice(0, this.maxConcurrentPipelines);
-   await Promise.all(
-    batch.map((fn) => fn().catch((err) => logger.error('[Redis] Queue error:', err))),
-   );
+  if (!this.flushTimer) {
+   this.flushTimer = setTimeout(() => this.flushPendingCommands(), 10);
   }
 
-  this.processingQueue = false;
+  if (this.pendingCommands.length % 1000 === 0) {
+   logger.log(`[Cache] Pending commands: ${this.pendingCommands.length}`);
+  }
+ }
+
+ private async flushPendingCommands(): Promise<void> {
+  this.flushTimer = null;
+
+  const commands = this.pendingCommands;
+  this.pendingCommands = [];
+
+  if (commands.length === 0) return;
+
+  logger.log(`[Cache] Flushing ${commands.length} commands in single pipeline`);
+
+  const pipeline = this.cacheDb.pipeline();
+  for (const addCmd of commands) {
+   addCmd(pipeline);
+  }
+
+  const startTime = Date.now();
+  try {
+   await pipeline.exec();
+   logger.log(`[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`);
+  } catch (err) {
+   logger.error('[Redis] Flush error:', err);
+  }
  }
 
  async execPipeline<T>(buildPipeline: (pipeline: BunChainableCommander) => void): Promise<T> {
