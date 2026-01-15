@@ -45,6 +45,8 @@ export class Cache extends EventEmitter {
  private pipelineInFlight = 0;
  private readonly maxConcurrentPipelines = 10;
  private pipelineQueue: Array<() => void> = [];
+ private workQueue: Array<() => Promise<void>> = [];
+ private processingQueue = false;
 
  cacheDb: BunRedisWrapper;
  readonly cacheSub: BunRedisWrapper;
@@ -160,9 +162,26 @@ export class Cache extends EventEmitter {
  };
 
  queueSync(addToPipeline: (pipeline: BunChainableCommander) => void): void {
-  const pipeline = this.cacheDb.pipeline();
-  addToPipeline(pipeline);
-  pipeline.exec().catch((err) => logger.error('[Redis] Queue error:', err));
+  this.workQueue.push(async () => {
+   const pipeline = this.cacheDb.pipeline();
+   addToPipeline(pipeline);
+   await pipeline.exec();
+  });
+  this.processQueue();
+ }
+
+ private async processQueue(): Promise<void> {
+  if (this.processingQueue) return;
+  this.processingQueue = true;
+
+  while (this.workQueue.length > 0) {
+   const batch = this.workQueue.splice(0, this.maxConcurrentPipelines);
+   await Promise.all(
+    batch.map((fn) => fn().catch((err) => logger.error('[Redis] Queue error:', err))),
+   );
+  }
+
+  this.processingQueue = false;
  }
 
  async execPipeline<T>(buildPipeline: (pipeline: BunChainableCommander) => void): Promise<T> {
