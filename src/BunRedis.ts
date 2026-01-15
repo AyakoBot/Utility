@@ -33,7 +33,7 @@ export class BunRedisWrapper {
 
  private requestQueue: QueuedRequest[] = [];
  private processing = false;
- private readonly maxRetries = 3;
+ private readonly maxRetries = 1;
  private readonly timeoutMs = 5000;
 
  constructor(options: { host?: string; db?: number } = {}) {

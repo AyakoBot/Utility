@@ -188,7 +188,9 @@ export class Cache extends EventEmitter {
     const commands = this.pendingCommands;
     this.pendingCommands = [];
 
-    logger.log(`[Cache] Flushing ${commands.length} commands in single pipeline`);
+    if (process.argv.includes('--debug')) {
+     logger.log(`[Cache] Flushing ${commands.length} commands in single pipeline`);
+    }
 
     const pipeline = this.cacheDb.pipeline();
     for (const addCmd of commands) {
@@ -198,7 +200,11 @@ export class Cache extends EventEmitter {
     const startTime = Date.now();
     try {
      await pipeline.exec();
-     logger.log(`[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`);
+     if (commands.length > 100 || process.argv.includes('--debug')) {
+      logger.log(
+       `[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`,
+      );
+     }
     } catch (err) {
      logger.error('[Redis] Flush error:', err);
     }
