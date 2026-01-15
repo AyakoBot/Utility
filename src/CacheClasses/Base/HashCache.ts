@@ -97,7 +97,7 @@ export default class TimeTrackedHashCache extends StringCache {
  override async set(keystoreId: string, id: string, value: string, ttl: number = 604800) {
   const pipeline = this.redis.pipeline();
   pipeline.hset(this.key(keystoreId, 'current'), id, value);
-  pipeline.call('hexpire', this.key(keystoreId, 'current'), id, ttl);
+  pipeline.hexpire(this.key(keystoreId, 'current'), ttl, 'FIELDS', 1, id);
   const result = await pipeline.exec();
   await this.snapshot(keystoreId, ttl);
   return result;

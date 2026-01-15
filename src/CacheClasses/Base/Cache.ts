@@ -30,8 +30,6 @@ import type {
 
 import type BunRedisWrapper from '../../BunRedis.js';
 import type { BunChainableCommander } from '../../BunRedis.js';
-
-export type QueueFn = (addToPipeline: (pipeline: BunChainableCommander) => void) => void;
 import type { RAuditLog } from '../auditlog.js';
 import type { RAutomod } from '../automod.js';
 import type { RBan } from '../ban.js';
@@ -59,6 +57,8 @@ import type { RUser } from '../user.js';
 import type { RVoiceState } from '../voice.js';
 import type { RWebhook } from '../webhook.js';
 import type { RWelcomeScreen } from '../welcomeScreen.js';
+
+export type QueueFn = (addToPipeline: (pipeline: BunChainableCommander) => void) => void;
 
 type GuildBasedCommand<T extends boolean> = T extends true
  ? APIApplicationCommand & { guild_id: string }
@@ -292,7 +292,7 @@ export default abstract class Cache<
   keys: string[],
  ) {
   pipeline.hset(this.keystore(...keystoreKeys), this.key(...keys), 0);
-  pipeline.call('hexpire', this.keystore(...keystoreKeys), this.key(...keys), ttl);
+  pipeline.hexpire(this.keystore(...keystoreKeys), ttl, 'FIELDS', 1, this.key(...keys));
  }
 
  async setValue(
