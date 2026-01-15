@@ -185,7 +185,15 @@ export class BunRedisWrapper {
  }
 
  async hgetall(key: string): Promise<Record<string, string>> {
-  return this.queueRequest('HGETALL', [key]) as Promise<Record<string, string>>;
+  const start = Date.now();
+  const result = (await this.queueRequest('HGETALL', [key])) as Record<string, string>;
+  const elapsed = Date.now() - start;
+  const size = Object.keys(result || {}).length;
+  if (elapsed > this.slowThresholdMs || size > 1000) {
+   // eslint-disable-next-line no-console
+   console.log(`[Redis#${this.instanceId}] HGETALL key="${key}" size=${size} time=${elapsed}ms`);
+  }
+  return result;
  }
 
  async hkeys(key: string): Promise<string[]> {
@@ -193,6 +201,7 @@ export class BunRedisWrapper {
  }
 
  async hdel(key: string, ...fields: string[]): Promise<number> {
+  if (fields.length === 0) return 0;
   return this.queueRequest('HDEL', [key, ...fields]) as Promise<number>;
  }
 
@@ -264,6 +273,7 @@ export class BunRedisWrapper {
     return this;
    },
    hdel(key: string, ...fields: string[]) {
+    if (fields.length === 0) return this;
     commands.push({ method: 'HDEL', args: [key, ...fields] });
     return this;
    },
