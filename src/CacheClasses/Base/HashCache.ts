@@ -83,11 +83,11 @@ export default class TimeTrackedHashCache extends StringCache {
  }
 
  override async getAll(keystoreId: string): Promise<Record<string, string>> {
-  return this.redis.hgetall(this.key(keystoreId, 'current'));
+  return this.redis.hscanAll(this.key(keystoreId, 'current'));
  }
 
  async getAllAt(time: number, keystoreId: string): Promise<Record<string, string>> {
-  return this.redis.hgetall(this.key(keystoreId, String(time)));
+  return this.redis.hscanAll(this.key(keystoreId, String(time)));
  }
 
  async getTimes(keystoreId: string): Promise<number[]> {

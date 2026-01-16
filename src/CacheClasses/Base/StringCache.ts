@@ -44,14 +44,12 @@ export default class StringCache {
  }
 
  async getAll(keystoreId: string): Promise<Record<string, string>> {
-  const all = await this.redis.hgetall(this.key(keystoreId));
+  const all = await this.redis.hscanAll(this.key(keystoreId), '*:current');
   const current: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(all)) {
-   if (key.endsWith(':current')) {
-    const id = key.slice(0, -8);
-    current[id] = value;
-   }
+   const id = key.slice(0, -8);
+   current[id] = value;
   }
 
   return current;
