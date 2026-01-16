@@ -60,6 +60,7 @@ export default class TimeTrackedHashCache extends StringCache {
    redis.call('EXPIRE', timestampKey, ttl)
    redis.call('HSET', historyKey, timestamp, timestamp)
    redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, timestamp)
+   redis.call('EXPIRE', historyKey, ttl)
  end
 
  redis.call('EXPIRE', currentKey, ttl)
@@ -97,7 +98,9 @@ export default class TimeTrackedHashCache extends StringCache {
  override async set(keystoreId: string, id: string, value: string, ttl: number = 604800) {
   const pipeline = this.redis.pipeline();
   pipeline.hset(this.key(keystoreId, 'current'), id, value);
+  pipeline.expire(this.key(keystoreId, 'current'), ttl);
   pipeline.hexpire(this.key(keystoreId, 'current'), ttl, 'FIELDS', 1, id);
+
   const result = await pipeline.exec();
   await this.snapshot(keystoreId, ttl);
   return result;

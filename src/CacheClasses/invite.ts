@@ -64,8 +64,10 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
 
   const pipeline = this.redis.pipeline();
   pipeline.hset(guildCodestoreKey, rData.code, rData.channel_id);
+  pipeline.expire(guildCodestoreKey, ttl);
   pipeline.hexpire(guildCodestoreKey, ttl, 'FIELDS', 1, rData.code);
   pipeline.hset(globalCodestoreKey, rData.code, location);
+  pipeline.expire(globalCodestoreKey, ttl);
   pipeline.hexpire(globalCodestoreKey, ttl, 'FIELDS', 1, rData.code);
   await pipeline.exec();
 

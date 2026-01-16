@@ -19,6 +19,7 @@ export default class StringCache {
  -- Set current value
  redis.call('HSET', cacheKey, currentKey, value)
  redis.call('HEXPIRE', cacheKey, ttl, 'FIELDS', 1, currentKey)
+ redis.call('EXPIRE', cacheKey, ttl)
 
  -- Only create snapshot if value changed
  if previousValue ~= value then
@@ -27,6 +28,7 @@ export default class StringCache {
   redis.call('HEXPIRE', cacheKey, ttl, 'FIELDS', 1, timestampKey)
   redis.call('HSET', historyKey, id, timestamp)
   redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, id)
+  redis.call('EXPIRE', historyKey, ttl)
   return 1
  end
 

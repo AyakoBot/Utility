@@ -224,6 +224,7 @@ export default abstract class Cache<
  redis.call('SET', timestampKey, newValue, 'EX', ttl)
  redis.call('HSET', historyKey, timestampKey, timestamp)
  redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, timestampKey)
+ redis.call('EXPIRE', historyKey, ttl)
  return 1
   `;
 
@@ -291,6 +292,7 @@ export default abstract class Cache<
   keys: string[],
  ) {
   pipeline.hset(this.keystore(...keystoreKeys), this.key(...keys), 0);
+  pipeline.expire(this.keystore(...keystoreKeys), ttl);
   pipeline.hexpire(this.keystore(...keystoreKeys), ttl, 'FIELDS', 1, this.key(...keys));
  }
 
