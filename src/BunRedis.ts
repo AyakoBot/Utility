@@ -128,7 +128,9 @@ export class BunRedisWrapper {
     if (isTimeout && request.retries < this.maxRetries) {
      request.retries++;
      // eslint-disable-next-line no-console
-     console.log(`[Redis#${this.instanceId}] Retry ${request.retries}/${this.maxRetries} for ${request.method}`);
+     console.log(
+      `[Redis#${this.instanceId}] Retry ${request.retries}/${this.maxRetries} for ${request.method}`,
+     );
      this.reconnect();
      await this.ensureInit();
      continue;
@@ -193,6 +195,57 @@ export class BunRedisWrapper {
    // eslint-disable-next-line no-console
    console.log(`[Redis#${this.instanceId}] HGETALL key="${key}" size=${size} time=${elapsed}ms`);
   }
+  return result;
+ }
+
+ async hscan(
+  key: string,
+  cursor: string,
+  match?: string,
+  count?: number,
+ ): Promise<[string, string[]]> {
+  const args: unknown[] = [key, cursor];
+  if (match) {
+   args.push('MATCH', match);
+  }
+  if (count) {
+   args.push('COUNT', count);
+  }
+  const result = (await this.queueRequest('HSCAN', args)) as [string, string[]];
+  return result;
+ }
+
+ async hscanKeys(key: string, match?: string, batchSize: number = 1000): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = '0';
+
+  do {
+   const [nextCursor, results] = await this.hscan(key, cursor, match, batchSize);
+   cursor = nextCursor;
+   for (let i = 0; i < results.length; i += 2) {
+    keys.push(results[i]);
+   }
+  } while (cursor !== '0');
+
+  return keys;
+ }
+
+ async hscanAll(
+  key: string,
+  match?: string,
+  batchSize: number = 1000,
+ ): Promise<Record<string, string>> {
+  const result: Record<string, string> = {};
+  let cursor = '0';
+
+  do {
+   const [nextCursor, results] = await this.hscan(key, cursor, match, batchSize);
+   cursor = nextCursor;
+   for (let i = 0; i < results.length; i += 2) {
+    result[results[i]] = results[i + 1];
+   }
+  } while (cursor !== '0');
+
   return result;
  }
 
