@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@discordjs/core": "^2.4.0",
+    "cbor-x": "^1.6.0",
     "discord-api-types": "0.38.37",
     "dotenv": "^17.2.3",
     "ioredis": "^5.9.2"

@@ -28,7 +28,8 @@ import type {
  APIWebhook,
 } from 'discord-api-types/v10';
 
-import type { RedisWrapperInterface, ChainableCommanderInterface } from '../../RedisWrapper.js';
+import type { ChainableCommanderInterface, RedisWrapperInterface } from '../../RedisWrapper.js';
+import { deserialize, serialize } from '../../Serialization.js';
 import type { RAuditLog } from '../auditlog.js';
 import type { RAutomod } from '../automod.js';
 import type { RBan } from '../ban.js';
@@ -173,49 +174,10 @@ export default abstract class Cache<
  local ttl = tonumber(ARGV[2])
  local timestamp = ARGV[3]
 
- -- Function to normalize JSON by sorting keys recursively
- local function normalizeJson(jsonStr)
-   local success, decoded = pcall(cjson.decode, jsonStr)
-   if not success then
-     return jsonStr  -- Return original if not valid JSON
-   end
-
-   local function sortTable(t)
-     if type(t) ~= "table" then
-       return t
-     end
-
-     local result = {}
-     local keys = {}
-
-     -- Collect all keys
-     for k in pairs(t) do
-       table.insert(keys, k)
-     end
-
-     -- Sort keys
-     table.sort(keys, function(a, b)
-       return tostring(a) < tostring(b)
-     end)
-
-     -- Rebuild table with sorted keys, recursively sorting nested objects
-     for _, k in ipairs(keys) do
-       result[k] = sortTable(t[k])
-     end
-
-     return result
-   end
-
-   local sortedTable = sortTable(decoded)
-   local success2, normalizedJson = pcall(cjson.encode, sortedTable)
-   return success2 and normalizedJson or jsonStr
- end
-
  local current = redis.call('GET', currentKey)
- local normalizedCurrent = current and normalizeJson(current) or nil
- local normalizedNew = normalizeJson(newValue)
 
- if normalizedCurrent == normalizedNew then
+ -- Direct byte comparison (CBOR is deterministic)
+ if current == newValue then
    redis.call('EXPIRE', currentKey, ttl)
    return 0
  end
@@ -242,7 +204,7 @@ export default abstract class Cache<
   this.queueFn = queueFn;
  }
 
- stringToData = (data: string | null) => (data ? (JSON.parse(data) as DeriveRFromAPI<T, K>) : null);
+ stringToData = (data: string | null) => (data ? deserialize<DeriveRFromAPI<T, K>>(data) : null);
 
  keystore(...ids: string[]) {
   return `${this.keystorePrefix}${ids.length ? `:${ids.join(':')}` : ''}`;
@@ -304,7 +266,7 @@ export default abstract class Cache<
   pipeline?: ChainableCommanderInterface,
  ) {
   const now = Date.now();
-  const valueStr = JSON.stringify(value);
+  const valueStr = serialize(value);
   const currentKey = this.key(...ids, 'current');
   const timestampKey = this.key(...ids, String(now));
   const historyKey = this.history(...ids);

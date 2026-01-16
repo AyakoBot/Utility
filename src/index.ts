@@ -3,8 +3,8 @@ export * from './Cache.js';
 export * from './Logger.js';
 export {
  createRedisWrapper,
- RedisWrapper,
  isRunningInBun,
+ RedisWrapper,
  type ChainableCommanderInterface,
  type RedisWrapperInterface,
  type RedisWrapperOptions,
@@ -19,4 +19,5 @@ export * from './Types/Redis.js';
 //#region Functions
 export { default as getChannelPerms } from './Functions/getChannelPerms.js';
 export { default as getGuildPerms } from './Functions/getGuildPerms.js';
+export { deserialize, serialize } from './Serialization.js';
 //#endregion
