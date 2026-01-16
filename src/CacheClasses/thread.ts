@@ -81,4 +81,20 @@ export default class ThreadCache extends Cache<
 
   return rData;
  }
+
+ async deleteByParent(guildId: string, parentId: string): Promise<number> {
+  const allThreads = await this.getAll(guildId);
+  const childThreads = allThreads.filter((t) => t.parent_id === parentId);
+  if (childThreads.length === 0) return 0;
+
+  const pipeline = this.redis.pipeline();
+
+  for (const thread of childThreads) {
+   pipeline.del(this.key(thread.id, 'current'));
+   pipeline.hdel(this.keystore(guildId), this.key(thread.id));
+  }
+
+  await pipeline.exec();
+  return childThreads.length;
+ }
 }

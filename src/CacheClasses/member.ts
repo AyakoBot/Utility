@@ -90,4 +90,23 @@ export default class MemberCache extends Cache<APIGuildMember> {
 
   return rData;
  }
+
+ async removeRoleFromAllMembers(guildId: string, roleId: string): Promise<number> {
+  const members = await this.getAll(guildId);
+  const membersWithRole = members.filter((m) => m.roles.includes(roleId));
+  if (membersWithRole.length === 0) return 0;
+
+  const pipeline = this.redis.pipeline();
+
+  for (const member of membersWithRole) {
+   const updatedMember = {
+    ...member,
+    roles: member.roles.filter((r) => r !== roleId),
+   };
+   await this.setValue(updatedMember, [guildId], [guildId, member.user_id], undefined, pipeline);
+  }
+
+  await pipeline.exec();
+  return membersWithRole.length;
+ }
 }

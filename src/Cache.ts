@@ -246,4 +246,22 @@ export class Cache extends EventEmitter {
    }
   }
  }
+
+ async onRoleDelete(guildId: string, roleId: string): Promise<number> {
+  this.logger.debug(`[Cache] Cascade: Role ${roleId} deleted from guild ${guildId}`);
+
+  await this.roles.del(roleId);
+  const updatedCount = await this.members.removeRoleFromAllMembers(guildId, roleId);
+  this.logger.debug(`[Cache] Cascade: Updated ${updatedCount} members`);
+  return updatedCount;
+ }
+
+ async onChannelDelete(guildId: string, channelId: string): Promise<number> {
+  this.logger.debug(`[Cache] Cascade: Channel ${channelId} deleted from guild ${guildId}`);
+
+  await this.channels.del(channelId);
+  const deletedCount = await this.threads.deleteByParent(guildId, channelId);
+  this.logger.debug(`[Cache] Cascade: Deleted ${deletedCount} threads`);
+  return deletedCount;
+ }
 }
