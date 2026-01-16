@@ -53,6 +53,7 @@ export class Cache extends EventEmitter {
  private flushTimer: ReturnType<typeof setTimeout> | null = null;
  private flushing = false;
 
+ logger = logger;
  cacheDb: RedisWrapperInterface;
  readonly cachePub: RedisWrapperInterface;
  readonly cacheSub: RedisWrapperInterface;
@@ -64,14 +65,14 @@ export class Cache extends EventEmitter {
 
   super();
 
-  logger.debug('[Cache] Initializing cache with cacheDb:', cacheDbNum, 'schedDb:', schedDbNum);
+  this.logger.debug('[Cache] Initializing cache with cacheDb:', cacheDbNum, 'schedDb:', schedDbNum);
 
   this.cacheDbNum = cacheDbNum;
   this.schedDbNum = schedDbNum || -1;
 
-  logger.silly('[Cache] Creating Redis connections...');
+  this.logger.silly('[Cache] Creating Redis connections...');
   const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
-  logger.log('[Cache] Using Redis host:', host);
+  this.logger.log('[Cache] Using Redis host:', host);
 
   const redisOptions = { host, db: cacheDbNum };
   this.cacheDb = createRedisWrapper(redisOptions);
@@ -87,10 +88,10 @@ export class Cache extends EventEmitter {
    this.scheduleSub = null;
   }
 
-  logger.log('[Cache] Redis connections established. Subscribing to events:', sub);
+  this.logger.log('[Cache] Redis connections established. Subscribing to events:', sub);
   if (sub) this._sub();
 
-  logger.silly('[Cache] Initializing cache classes...');
+  this.logger.silly('[Cache] Initializing cache classes...');
   const q = this.queueSync.bind(this);
   this.audits = new AuditLogCache(this.cacheDb, q);
   this.automods = new AutomodCache(this.cacheDb, q);
@@ -122,7 +123,7 @@ export class Cache extends EventEmitter {
   this.onboardings = new OnboardingCache(this.cacheDb, q);
   this.eventUsers = new EventUserCache(this.cacheDb, q);
 
-  logger.log('[Cache] Cache initialization complete');
+  this.logger.log('[Cache] Cache initialization complete');
  }
 
  readonly audits: AuditLogCache;
@@ -156,11 +157,11 @@ export class Cache extends EventEmitter {
  readonly eventUsers: EventUserCache;
 
  private _sub = () => {
-  logger.silly('[Cache] Configuring Redis keyspace notifications');
+  this.logger.silly('[Cache] Configuring Redis keyspace notifications');
   this.cacheDb.config('SET', 'notify-keyspace-events', 'Ex');
   this.scheduleDb?.config('SET', 'notify-keyspace-events', 'Ex');
 
-  logger.debug('[Cache] Subscribing to Redis channels');
+  this.logger.debug('[Cache] Subscribing to Redis channels');
   this.cacheSub.subscribe(
    `__keyevent@${this.schedDbNum}__:expired`,
    ...Object.values(GatewayDispatchEvents),
@@ -177,7 +178,7 @@ export class Cache extends EventEmitter {
   }
 
   if (this.pendingCommands.length % 1000 === 0) {
-   logger.log(`[Cache] Pending commands: ${this.pendingCommands.length}`);
+   this.logger.log(`[Cache] Pending commands: ${this.pendingCommands.length}`);
   }
  }
 
@@ -192,9 +193,7 @@ export class Cache extends EventEmitter {
     const commands = this.pendingCommands;
     this.pendingCommands = [];
 
-    if (process.argv.includes('--debug')) {
-     logger.log(`[Cache] Flushing ${commands.length} commands in single pipeline`);
-    }
+    this.logger.debug(`[Cache] Flushing ${commands.length} commands in single pipeline`);
 
     const pipeline = this.cacheDb.pipeline();
     for (const addCmd of commands) {
@@ -205,12 +204,12 @@ export class Cache extends EventEmitter {
     try {
      await pipeline.exec();
      if (commands.length > 100 || process.argv.includes('--debug')) {
-      logger.log(
+      this.logger.log(
        `[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`,
       );
      }
     } catch (err) {
-     logger.error('[Redis] Flush error:', err);
+     this.logger.error('[Redis] Flush error:', err);
     }
    }
   } finally {
