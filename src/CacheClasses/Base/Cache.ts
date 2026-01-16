@@ -28,8 +28,7 @@ import type {
  APIWebhook,
 } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../../BunRedis.js';
-import type { BunChainableCommander } from '../../BunRedis.js';
+import type { RedisWrapperInterface, ChainableCommanderInterface } from '../../RedisWrapper.js';
 import type { RAuditLog } from '../auditlog.js';
 import type { RAutomod } from '../automod.js';
 import type { RBan } from '../ban.js';
@@ -58,7 +57,7 @@ import type { RVoiceState } from '../voice.js';
 import type { RWebhook } from '../webhook.js';
 import type { RWelcomeScreen } from '../welcomeScreen.js';
 
-export type QueueFn = (addToPipeline: (pipeline: BunChainableCommander) => void) => void;
+export type QueueFn = (addToPipeline: (pipeline: ChainableCommanderInterface) => void) => void;
 
 type GuildBasedCommand<T extends boolean> = T extends true
  ? APIApplicationCommand & { guild_id: string }
@@ -231,10 +230,10 @@ export default abstract class Cache<
  private prefix: string;
  private keystorePrefix: string;
  private historyPrefix: string;
- public redis: BunRedisWrapper;
+ public redis: RedisWrapperInterface;
  private queueFn?: QueueFn;
 
- constructor(redis: BunRedisWrapper, type: string, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, type: string, queueFn?: QueueFn) {
   this.prefix = `cache:${type}`;
   this.historyPrefix = `history:${type}`;
   this.keystorePrefix = `keystore:${type}`;
@@ -286,7 +285,7 @@ export default abstract class Cache<
  }
 
  private setKeystore(
-  pipeline: BunChainableCommander,
+  pipeline: ChainableCommanderInterface,
   ttl: number = 604800,
   keystoreKeys: string[],
   keys: string[],
@@ -300,7 +299,7 @@ export default abstract class Cache<
   keystoreIds: string[],
   ids: string[],
   ttl: number = 604800,
-  pipeline?: BunChainableCommander,
+  pipeline?: ChainableCommanderInterface,
  ) {
   const now = Date.now();
   const valueStr = JSON.stringify(value);

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIRole } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -27,7 +27,7 @@ export const RRoleKeys = [
 export default class RoleCache extends Cache<APIRole> {
  public keys = RRoleKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'roles', queueFn);
  }
 

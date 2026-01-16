@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuild } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -79,7 +79,7 @@ export default class GuildCache extends Cache<APIGuild> {
   return `https://cdn.discordapp.com/banners/${guildId}/${hash}.${hash.startsWith('a_') ? 'gif' : 'webp'}`;
  }
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'guilds', queueFn);
  }
 

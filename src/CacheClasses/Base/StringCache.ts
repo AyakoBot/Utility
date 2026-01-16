@@ -1,9 +1,9 @@
-import type BunRedisWrapper from '../../BunRedis.js';
+import type { RedisWrapperInterface } from '../../RedisWrapper.js';
 
 export default class StringCache {
  protected prefix: string;
  protected historyPrefix: string;
- public redis: BunRedisWrapper;
+ public redis: RedisWrapperInterface;
 
  private dedupeScript = `
  local cacheKey = KEYS[1]
@@ -33,7 +33,7 @@ export default class StringCache {
  return 0
  `;
 
- constructor(redis: BunRedisWrapper, type: string) {
+ constructor(redis: RedisWrapperInterface, type: string) {
   this.prefix = `cache:${type}`;
   this.historyPrefix = `history:${type}`;
   this.redis = redis;

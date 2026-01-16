@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuildIntegration } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -32,7 +32,7 @@ export default class IntegrationCache extends Cache<
 > {
  public keys: ReadonlyArray<keyof RIntegration> = RIntegrationKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'integrations', queueFn);
  }
 

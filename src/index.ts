@@ -1,7 +1,14 @@
 //#region Classes
 export * from './Cache.js';
 export * from './Logger.js';
-export { BunRedisWrapper, type BunChainableCommander } from './BunRedis.js';
+export {
+ createRedisWrapper,
+ RedisWrapper,
+ isRunningInBun,
+ type ChainableCommanderInterface,
+ type RedisWrapperInterface,
+ type RedisWrapperOptions,
+} from './RedisWrapper.js';
 //#endregion
 
 //#region Types

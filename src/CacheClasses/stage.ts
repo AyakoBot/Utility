@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIStageInstance } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -20,7 +20,7 @@ export const RStageInstanceKeys = [
 export default class StageCache extends Cache<APIStageInstance> {
  public keys = RStageInstanceKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'stages', queueFn);
  }
 

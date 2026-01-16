@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIAuditLogEntry } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -21,7 +21,7 @@ export const RAuditLogKeys = [
 export default class AuditLogCache extends Cache<APIAuditLogEntry> {
  public keys = RAuditLogKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'auditlogs', queueFn);
  }
 

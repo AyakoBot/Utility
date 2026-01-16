@@ -1,9 +1,9 @@
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import TimeTrackedHashCache from './Base/HashCache.js';
 
 export default class PinCache extends TimeTrackedHashCache {
- constructor(redis: BunRedisWrapper) {
+ constructor(redis: RedisWrapperInterface) {
   super(redis, 'pins');
  }
 

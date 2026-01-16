@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuildWelcomeScreen } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -12,7 +12,7 @@ export const RWelcomeScreenKeys = ['description', 'welcome_channels'] as const;
 export default class WelcomeScreenCache extends Cache<APIGuildWelcomeScreen> {
  public keys = RWelcomeScreenKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'welcome-screens', queueFn);
  }
 

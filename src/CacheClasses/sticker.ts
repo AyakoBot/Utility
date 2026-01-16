@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { StickerFormatType, type APISticker } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 import type { MakeRequired } from '../Types/index.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
@@ -28,7 +28,7 @@ export const RStickerKeys = [
 export default class StickerCache extends Cache<APISticker> {
  public keys = RStickerKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'stickers', queueFn);
  }
 

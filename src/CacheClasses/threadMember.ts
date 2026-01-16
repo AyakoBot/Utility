@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIThreadMember } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -16,7 +16,7 @@ export const RThreadMemberKeys = ['id', 'user_id', 'join_timestamp', 'flags', 'g
 export default class ThreadMemberCache extends Cache<APIThreadMember> {
  public keys = RThreadMemberKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'thread-members', queueFn);
  }
 

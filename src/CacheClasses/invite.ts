@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIExtendedInvite, APIInvite } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 
@@ -41,7 +41,7 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
  public keys = RInviteKeys;
  private codestorePrefix: string;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'invites', queueFn);
   this.codestorePrefix = 'codestore:invites';
  }

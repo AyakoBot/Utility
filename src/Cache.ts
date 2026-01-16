@@ -2,7 +2,6 @@ import { EventEmitter } from 'node:events';
 
 import { GatewayDispatchEvents } from '@discordjs/core';
 
-import BunRedisWrapper, { type BunChainableCommander } from './BunRedis.js';
 import AuditLogCache from './CacheClasses/auditlog.js';
 import AutomodCache from './CacheClasses/automod.js';
 import BanCache from './CacheClasses/ban.js';
@@ -33,6 +32,11 @@ import VoiceCache from './CacheClasses/voice.js';
 import WebhookCache from './CacheClasses/webhook.js';
 import WelcomeScreenCache from './CacheClasses/welcomeScreen.js';
 import logger from './Logger.js';
+import {
+ createRedisWrapper,
+ type ChainableCommanderInterface,
+ type RedisWrapperInterface,
+} from './RedisWrapper.js';
 import { MessageType } from './Types/Redis.js';
 
 const messageTypes = [MessageType.Interaction, MessageType.Vote, MessageType.Appeal];
@@ -45,15 +49,15 @@ export class Cache extends EventEmitter {
  private pipelineInFlight = 0;
  private readonly maxConcurrentPipelines = 10;
  private pipelineQueue: Array<() => void> = [];
- private pendingCommands: Array<(p: BunChainableCommander) => void> = [];
+ private pendingCommands: Array<(p: ChainableCommanderInterface) => void> = [];
  private flushTimer: ReturnType<typeof setTimeout> | null = null;
  private flushing = false;
 
- cacheDb: BunRedisWrapper;
- readonly cachePub: BunRedisWrapper;
- readonly cacheSub: BunRedisWrapper;
- readonly scheduleDb: BunRedisWrapper | null;
- readonly scheduleSub: BunRedisWrapper | null;
+ cacheDb: RedisWrapperInterface;
+ readonly cachePub: RedisWrapperInterface;
+ readonly cacheSub: RedisWrapperInterface;
+ readonly scheduleDb: RedisWrapperInterface | null;
+ readonly scheduleSub: RedisWrapperInterface | null;
 
  constructor(cacheDbNum: number, schedDbNum?: number, sub: boolean = true) {
   if (sub && !schedDbNum) throw new Error('[Cache] schedDbNum must be provided if sub is true');
@@ -70,14 +74,14 @@ export class Cache extends EventEmitter {
   logger.log('[Cache] Using Redis host:', host);
 
   const redisOptions = { host, db: cacheDbNum };
-  this.cacheDb = new BunRedisWrapper(redisOptions);
-  this.cachePub = new BunRedisWrapper(redisOptions);
-  this.cacheSub = new BunRedisWrapper(redisOptions);
+  this.cacheDb = createRedisWrapper(redisOptions);
+  this.cachePub = createRedisWrapper(redisOptions);
+  this.cacheSub = createRedisWrapper(redisOptions);
 
   if (schedDbNum) {
    const schedOptions = { host, db: schedDbNum };
-   this.scheduleDb = new BunRedisWrapper(schedOptions);
-   this.scheduleSub = new BunRedisWrapper(schedOptions);
+   this.scheduleDb = createRedisWrapper(schedOptions);
+   this.scheduleSub = createRedisWrapper(schedOptions);
   } else {
    this.scheduleDb = null;
    this.scheduleSub = null;
@@ -165,7 +169,7 @@ export class Cache extends EventEmitter {
   this.scheduleSub?.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
  };
 
- queueSync(addToPipeline: (pipeline: BunChainableCommander) => void): void {
+ queueSync(addToPipeline: (pipeline: ChainableCommanderInterface) => void): void {
   this.pendingCommands.push(addToPipeline);
 
   if (!this.flushTimer && !this.flushing) {
@@ -217,7 +221,7 @@ export class Cache extends EventEmitter {
   }
  }
 
- async execPipeline<T>(buildPipeline: (pipeline: BunChainableCommander) => void): Promise<T> {
+ async execPipeline<T>(buildPipeline: (pipeline: ChainableCommanderInterface) => void): Promise<T> {
   if (this.pipelineInFlight >= this.maxConcurrentPipelines) {
    await new Promise<void>((resolve) => this.pipelineQueue.push(resolve));
   }

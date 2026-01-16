@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIMessage } from 'discord-api-types/v10';
 
-import type BunRedisWrapper from '../BunRedis.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import Cache, { type QueueFn } from './Base/Cache.js';
 import MessageCache, { type RMessage, RMessageKeys } from './message.js';
@@ -20,7 +20,7 @@ export const RInteractionMessageKeys = [
 export default class InteractionMessageCache extends Cache<APIMessage> {
  public keys = RInteractionMessageKeys as unknown as typeof RMessageKeys;
 
- constructor(redis: BunRedisWrapper, queueFn?: QueueFn) {
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
   super(redis, 'interactions', queueFn);
  }
 

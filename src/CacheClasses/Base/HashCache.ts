@@ -1,4 +1,4 @@
-import type BunRedisWrapper from '../../BunRedis.js';
+import type { RedisWrapperInterface } from '../../RedisWrapper.js';
 
 import StringCache from './StringCache.js';
 
@@ -66,7 +66,7 @@ export default class TimeTrackedHashCache extends StringCache {
  return 1
   `;
 
- constructor(redis: BunRedisWrapper, type: string) {
+ constructor(redis: RedisWrapperInterface, type: string) {
   super(redis, type);
  }
 
