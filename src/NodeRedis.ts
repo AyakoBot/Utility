@@ -207,6 +207,10 @@ export class NodeRedisWrapper {
  async disconnect(): Promise<void> {
   this.client.disconnect();
  }
+
+ getQueueSize(): number {
+  return 0;
+ }
 }
 
 export default NodeRedisWrapper;

@@ -53,6 +53,8 @@ export interface RedisWrapperInterface {
  // Connection
  quit(): Promise<'OK'>;
  disconnect(): Promise<void>;
+
+ getQueueSize(): number;
 }
 
 export interface ChainableCommanderInterface {

@@ -375,6 +375,10 @@ export class BunRedisWrapper {
  async disconnect(): Promise<void> {
   this.client.close();
  }
+
+ getQueueSize(): number {
+  return this.requestQueue.length;
+ }
 }
 
 export default BunRedisWrapper;
