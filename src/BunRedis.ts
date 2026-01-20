@@ -91,7 +91,7 @@ export class BunRedisWrapper {
  private queueRequest(method: string, args: unknown[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
    this.requestQueue.push({ method, args, resolve, reject, retries: 0 });
-   if (this.requestQueue.length % 100 === 0) {
+   if (this.requestQueue.length % 10000 === 0) {
     // eslint-disable-next-line no-console
     console.log(`[Redis#${this.instanceId}] Queue size: ${this.requestQueue.length}`);
    }
