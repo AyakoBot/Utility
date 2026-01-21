@@ -27,10 +27,9 @@ import type {
  APIVoiceState,
  APIWebhook,
 } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
-import type { ChainableCommander } from 'ioredis';
 
-import type { PipelineBatcher } from '../../PipelineBatcher.js';
+import type { ChainableCommanderInterface, RedisWrapperInterface } from '../../RedisWrapper.js';
+import { deserialize, serialize } from '../../Serialization.js';
 import type { RAuditLog } from '../auditlog.js';
 import type { RAutomod } from '../automod.js';
 import type { RBan } from '../ban.js';
@@ -58,6 +57,8 @@ import type { RUser } from '../user.js';
 import type { RVoiceState } from '../voice.js';
 import type { RWebhook } from '../webhook.js';
 import type { RWelcomeScreen } from '../welcomeScreen.js';
+
+export type QueueFn = (addToPipeline: (pipeline: ChainableCommanderInterface) => void) => void;
 
 type GuildBasedCommand<T extends boolean> = T extends true
  ? APIApplicationCommand & { guild_id: string }
@@ -164,7 +165,6 @@ export default abstract class Cache<
  K extends boolean = false,
 > {
  abstract keys: ReadonlyArray<keyof DeriveRFromAPI<T, K>>;
- batcher: PipelineBatcher;
 
  private dedupeScript = `
  local currentKey = KEYS[1]
@@ -173,75 +173,38 @@ export default abstract class Cache<
  local newValue = ARGV[1]
  local ttl = tonumber(ARGV[2])
  local timestamp = ARGV[3]
- 
- -- Function to normalize JSON by sorting keys recursively
- local function normalizeJson(jsonStr)
-   local success, decoded = pcall(cjson.decode, jsonStr)
-   if not success then
-     return jsonStr  -- Return original if not valid JSON
-   end
-   
-   local function sortTable(t)
-     if type(t) ~= "table" then
-       return t
-     end
-     
-     local result = {}
-     local keys = {}
-     
-     -- Collect all keys
-     for k in pairs(t) do
-       table.insert(keys, k)
-     end
-     
-     -- Sort keys
-     table.sort(keys, function(a, b)
-       return tostring(a) < tostring(b)
-     end)
-     
-     -- Rebuild table with sorted keys, recursively sorting nested objects
-     for _, k in ipairs(keys) do
-       result[k] = sortTable(t[k])
-     end
-     
-     return result
-   end
-   
-   local sortedTable = sortTable(decoded)
-   local success2, normalizedJson = pcall(cjson.encode, sortedTable)
-   return success2 and normalizedJson or jsonStr
- end
- 
+
  local current = redis.call('GET', currentKey)
- local normalizedCurrent = current and normalizeJson(current) or nil
- local normalizedNew = normalizeJson(newValue)
- 
- if normalizedCurrent == normalizedNew then
+
+ -- Direct byte comparison (CBOR is deterministic)
+ if current == newValue then
    redis.call('EXPIRE', currentKey, ttl)
    return 0
  end
- 
+
  redis.call('SET', currentKey, newValue, 'EX', ttl)
  redis.call('SET', timestampKey, newValue, 'EX', ttl)
  redis.call('HSET', historyKey, timestampKey, timestamp)
  redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, timestampKey)
+ redis.call('EXPIRE', historyKey, ttl)
  return 1
   `;
 
  private prefix: string;
  private keystorePrefix: string;
  private historyPrefix: string;
- public redis: Redis;
+ public redis: RedisWrapperInterface;
+ private queueFn?: QueueFn;
 
- constructor(redis: Redis, type: string, batcher: PipelineBatcher) {
+ constructor(redis: RedisWrapperInterface, type: string, queueFn?: QueueFn) {
   this.prefix = `cache:${type}`;
   this.historyPrefix = `history:${type}`;
   this.keystorePrefix = `keystore:${type}`;
   this.redis = redis;
-  this.batcher = batcher;
+  this.queueFn = queueFn;
  }
 
- stringToData = (data: string | null) => (data ? (JSON.parse(data) as DeriveRFromAPI<T, K>) : null);
+ stringToData = (data: string | null) => (data ? deserialize<DeriveRFromAPI<T, K>>(data) : null);
 
  keystore(...ids: string[]) {
   return `${this.keystorePrefix}${ids.length ? `:${ids.join(':')}` : ''}`;
@@ -285,13 +248,14 @@ export default abstract class Cache<
  }
 
  private setKeystore(
-  pipeline: ChainableCommander,
+  pipeline: ChainableCommanderInterface,
   ttl: number = 604800,
   keystoreKeys: string[],
   keys: string[],
  ) {
   pipeline.hset(this.keystore(...keystoreKeys), this.key(...keys), 0);
-  pipeline.call('hexpire', this.keystore(...keystoreKeys), this.key(...keys), ttl);
+  pipeline.expire(this.keystore(...keystoreKeys), ttl);
+  pipeline.hexpire(this.keystore(...keystoreKeys), ttl, 'FIELDS', 1, this.key(...keys));
  }
 
  async setValue(
@@ -299,10 +263,10 @@ export default abstract class Cache<
   keystoreIds: string[],
   ids: string[],
   ttl: number = 604800,
-  pipeline?: ChainableCommander,
+  pipeline?: ChainableCommanderInterface,
  ) {
   const now = Date.now();
-  const valueStr = JSON.stringify(value);
+  const valueStr = serialize(value);
   const currentKey = this.key(...ids, 'current');
   const timestampKey = this.key(...ids, String(now));
   const historyKey = this.history(...ids);
@@ -313,14 +277,22 @@ export default abstract class Cache<
    return null;
   }
 
-  return this.batcher.queue((p) => {
-   p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
-   if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
-  });
+  if (this.queueFn) {
+   this.queueFn((p) => {
+    p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
+    if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
+   });
+   return null;
+  }
+
+  const p = this.redis.pipeline();
+  p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
+  if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
+  return p.exec();
  }
 
  del(...ids: string[]) {
-  return this.batcher.queue((p) => p.del(this.key(...ids, 'current')));
+  return this.redis.del(this.key(...ids, 'current'));
  }
 
  abstract apiToR(data: T, ...additionalArgs: string[]): DeriveRFromAPI<T, K> | false;

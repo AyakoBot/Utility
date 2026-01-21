@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIExtendedInvite, APIInvite } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RInvite = Omit<
  APIExtendedInvite,
@@ -42,8 +41,8 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
  public keys = RInviteKeys;
  private codestorePrefix: string;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'invites', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'invites', queueFn);
   this.codestorePrefix = 'codestore:invites';
  }
 
@@ -65,8 +64,10 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
 
   const pipeline = this.redis.pipeline();
   pipeline.hset(guildCodestoreKey, rData.code, rData.channel_id);
+  pipeline.expire(guildCodestoreKey, ttl);
   pipeline.hexpire(guildCodestoreKey, ttl, 'FIELDS', 1, rData.code);
   pipeline.hset(globalCodestoreKey, rData.code, location);
+  pipeline.expire(globalCodestoreKey, ttl);
   pipeline.hexpire(globalCodestoreKey, ttl, 'FIELDS', 1, rData.code);
   await pipeline.exec();
 
@@ -92,7 +93,7 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
   return this.get(channelId, code);
  }
 
- async del(channelId: string, code: string, guildId?: string) {
+ async del(channelId: string, code: string, guildId?: string): Promise<number> {
   if (!guildId) {
    const location = await this.redis.hget(this.codestore(), code);
    if (location) [guildId] = location.split(':');
@@ -110,6 +111,7 @@ export default class InviteCache extends Cache<APIInvite | APIExtendedInvite> {
   pipeline.hdel(this.codestore(), code);
 
   await pipeline.exec();
+  return 1;
  }
 
  apiToR(data: APIInvite) {

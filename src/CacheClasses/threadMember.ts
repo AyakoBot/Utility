@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIThreadMember } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RThreadMember = Omit<APIThreadMember, 'member'> & {
  guild_id: string;
@@ -17,8 +16,8 @@ export const RThreadMemberKeys = ['id', 'user_id', 'join_timestamp', 'flags', 'g
 export default class ThreadMemberCache extends Cache<APIThreadMember> {
  public keys = RThreadMemberKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'thread-members', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'thread-members', queueFn);
  }
 
  async set(data: APIThreadMember, guildId: string) {

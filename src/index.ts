@@ -1,7 +1,14 @@
 //#region Classes
 export * from './Cache.js';
 export * from './Logger.js';
-export * from './PipelineBatcher.js';
+export {
+ createRedisWrapper,
+ isRunningInBun,
+ RedisWrapper,
+ type ChainableCommanderInterface,
+ type RedisWrapperInterface,
+ type RedisWrapperOptions,
+} from './RedisWrapper.js';
 //#endregion
 
 //#region Types
@@ -12,4 +19,6 @@ export * from './Types/Redis.js';
 //#region Functions
 export { default as getChannelPerms } from './Functions/getChannelPerms.js';
 export { default as getGuildPerms } from './Functions/getGuildPerms.js';
+export { default as getRandom } from './Functions/getRandom.js';
+export { deserialize, serialize } from './Serialization.js';
 //#endregion

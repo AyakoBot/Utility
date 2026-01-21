@@ -12,19 +12,21 @@
   },
   "dependencies": {
     "@discordjs/core": "^2.4.0",
+    "cbor-x": "^1.6.0",
     "discord-api-types": "0.38.37",
     "dotenv": "^17.2.3",
-    "ioredis": "^5.9.1"
+    "ioredis": "^5.9.2"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.28.6",
     "@babel/eslint-plugin": "^7.27.1",
     "@eslint/compat": "^2.0.1",
     "@eslint/js": "^9.39.2",
-    "@swc/cli": "^0.7.9",
+    "@swc/cli": "^0.7.10",
     "@swc/core": "1.15.8",
     "@total-typescript/ts-reset": "^0.6.1",
-    "@types/node": "^25.0.7",
+    "@types/bun": "latest",
+    "@types/node": "^25.0.9",
     "@typescript-eslint/eslint-plugin": "^8.53.0",
     "@typescript-eslint/parser": "^8.53.0",
     "eslint": "^9.39.2",
@@ -34,9 +36,9 @@
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-json": "^4.0.1",
     "eslint-plugin-jsx-a11y": "^6.10.2",
-    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-prettier": "^5.5.5",
     "globals": "^17.0.0",
-    "prettier": "^3.7.4",
+    "prettier": "^3.8.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.0"
   },

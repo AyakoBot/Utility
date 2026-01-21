@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuild } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RGuild = Omit<
  APIGuild,
@@ -80,8 +79,8 @@ export default class GuildCache extends Cache<APIGuild> {
   return `https://cdn.discordapp.com/banners/${guildId}/${hash}.${hash.startsWith('a_') ? 'gif' : 'webp'}`;
  }
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'guilds', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'guilds', queueFn);
  }
 
  async set(data: APIGuild) {

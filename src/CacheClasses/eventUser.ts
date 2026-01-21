@@ -3,11 +3,10 @@ import type {
  APIGuildScheduledEventUser,
  GatewayGuildScheduledEventUserRemoveDispatchData,
 } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type REventUser = Omit<APIGuildScheduledEventUser, 'user' | 'member'> & {
  user_id: string;
@@ -18,8 +17,8 @@ export const REventUserKeys = ['guild_scheduled_event_id', 'user_id'] as const;
 export default class EventUserCache extends Cache<APIGuildScheduledEventUser> {
  public keys = REventUserKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'event-users', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'event-users', queueFn);
  }
 
  async set(

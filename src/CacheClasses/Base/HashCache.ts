@@ -1,4 +1,4 @@
-import type Redis from 'ioredis';
+import type { RedisWrapperInterface } from '../../RedisWrapper.js';
 
 import StringCache from './StringCache.js';
 
@@ -60,13 +60,14 @@ export default class TimeTrackedHashCache extends StringCache {
    redis.call('EXPIRE', timestampKey, ttl)
    redis.call('HSET', historyKey, timestamp, timestamp)
    redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, timestamp)
+   redis.call('EXPIRE', historyKey, ttl)
  end
 
  redis.call('EXPIRE', currentKey, ttl)
  return 1
   `;
 
- constructor(redis: Redis, type: string) {
+ constructor(redis: RedisWrapperInterface, type: string) {
   super(redis, type);
  }
 
@@ -83,11 +84,11 @@ export default class TimeTrackedHashCache extends StringCache {
  }
 
  override async getAll(keystoreId: string): Promise<Record<string, string>> {
-  return this.redis.hgetall(this.key(keystoreId, 'current'));
+  return this.redis.hscanAll(this.key(keystoreId, 'current'));
  }
 
  async getAllAt(time: number, keystoreId: string): Promise<Record<string, string>> {
-  return this.redis.hgetall(this.key(keystoreId, String(time)));
+  return this.redis.hscanAll(this.key(keystoreId, String(time)));
  }
 
  async getTimes(keystoreId: string): Promise<number[]> {
@@ -97,7 +98,9 @@ export default class TimeTrackedHashCache extends StringCache {
  override async set(keystoreId: string, id: string, value: string, ttl: number = 604800) {
   const pipeline = this.redis.pipeline();
   pipeline.hset(this.key(keystoreId, 'current'), id, value);
-  pipeline.call('hexpire', this.key(keystoreId, 'current'), id, ttl);
+  pipeline.expire(this.key(keystoreId, 'current'), ttl);
+  pipeline.hexpire(this.key(keystoreId, 'current'), ttl, 'FIELDS', 1, id);
+
   const result = await pipeline.exec();
   await this.snapshot(keystoreId, ttl);
   return result;

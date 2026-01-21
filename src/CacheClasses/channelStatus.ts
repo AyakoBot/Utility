@@ -1,9 +1,9 @@
-import type Redis from 'ioredis';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
 import StringCache from './Base/StringCache.js';
 
 export default class ChannelStatusCache extends StringCache {
- constructor(redis: Redis) {
+ constructor(redis: RedisWrapperInterface) {
   super(redis, 'channels-statuses');
  }
 

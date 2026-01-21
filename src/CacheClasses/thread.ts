@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIThreadChannel } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RThread = Pick<
  APIThreadChannel,
@@ -52,8 +51,8 @@ export default class ThreadCache extends Cache<
 > {
  public keys = RThreadKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'threads', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'threads', queueFn);
  }
 
  async set(data: Omit<APIThreadChannel, 'position'>) {
@@ -81,5 +80,21 @@ export default class ThreadCache extends Cache<
   keysNotToCache.forEach((k) => delete (rData as Record<string, unknown>)[k as string]);
 
   return rData;
+ }
+
+ async deleteByParent(guildId: string, parentId: string): Promise<number> {
+  const allThreads = await this.getAll(guildId);
+  const childThreads = allThreads.filter((t) => t.parent_id === parentId);
+  if (childThreads.length === 0) return 0;
+
+  const pipeline = this.redis.pipeline();
+
+  for (const thread of childThreads) {
+   pipeline.del(this.key(thread.id, 'current'));
+   pipeline.hdel(this.keystore(guildId), this.key(thread.id));
+  }
+
+  await pipeline.exec();
+  return childThreads.length;
  }
 }

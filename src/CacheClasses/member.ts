@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIGuildMember } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RMember = Omit<APIGuildMember, 'user' | 'avatar' | 'banner'> & {
  user_id: string;
@@ -33,8 +32,8 @@ export const RMemberKeys = [
 export default class MemberCache extends Cache<APIGuildMember> {
  public keys = RMemberKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'members', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'members', queueFn);
  }
 
  public static bannerUrl(banner: string, userId: string, guildId: string) {
@@ -90,5 +89,24 @@ export default class MemberCache extends Cache<APIGuildMember> {
   keysNotToCache.forEach((k) => delete (rData as Record<string, unknown>)[k as string]);
 
   return rData;
+ }
+
+ async removeRoleFromAllMembers(guildId: string, roleId: string): Promise<number> {
+  const members = await this.getAll(guildId);
+  const membersWithRole = members.filter((m) => m.roles.includes(roleId));
+  if (membersWithRole.length === 0) return 0;
+
+  const pipeline = this.redis.pipeline();
+
+  for (const member of membersWithRole) {
+   const updatedMember = {
+    ...member,
+    roles: member.roles.filter((r) => r !== roleId),
+   };
+   await this.setValue(updatedMember, [guildId], [guildId, member.user_id], undefined, pipeline);
+  }
+
+  await pipeline.exec();
+  return membersWithRole.length;
  }
 }

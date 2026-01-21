@@ -1,7 +1,6 @@
 import { EventEmitter } from 'node:events';
 
 import { GatewayDispatchEvents } from '@discordjs/core';
-import Redis from 'ioredis';
 
 import AuditLogCache from './CacheClasses/auditlog.js';
 import AutomodCache from './CacheClasses/automod.js';
@@ -33,7 +32,11 @@ import VoiceCache from './CacheClasses/voice.js';
 import WebhookCache from './CacheClasses/webhook.js';
 import WelcomeScreenCache from './CacheClasses/welcomeScreen.js';
 import logger from './Logger.js';
-import { PipelineBatcher } from './PipelineBatcher.js';
+import {
+ createRedisWrapper,
+ type ChainableCommanderInterface,
+ type RedisWrapperInterface,
+} from './RedisWrapper.js';
 import { MessageType } from './Types/Redis.js';
 
 const messageTypes = [MessageType.Interaction, MessageType.Vote, MessageType.Appeal];
@@ -42,119 +45,85 @@ export class Cache extends EventEmitter {
  readonly prefix = 'cache';
  readonly cacheDbNum: number;
  readonly schedDbNum: number;
- batcher: PipelineBatcher;
 
  private pipelineInFlight = 0;
  private readonly maxConcurrentPipelines = 10;
  private pipelineQueue: Array<() => void> = [];
+ private pendingCommands: Array<(p: ChainableCommanderInterface) => void> = [];
+ private flushTimer: ReturnType<typeof setTimeout> | null = null;
+ private flushing = false;
 
- // @ts-expect-error -- This is used
- private recycleTimer: NodeJS.Timeout | null = null;
- private readonly recycleIntervalMs = 5 * 60 * 1000; // 5 minutes - aggressive preventive recycling
-
- cacheDb: Redis;
- readonly cacheSub: Redis;
- readonly scheduleDb: Redis | null;
- readonly scheduleSub: Redis | null;
+ logger = logger;
+ cacheDb: RedisWrapperInterface;
+ readonly cachePub: RedisWrapperInterface;
+ readonly cacheSub: RedisWrapperInterface;
+ readonly scheduleDb: RedisWrapperInterface | null;
+ readonly scheduleSub: RedisWrapperInterface | null;
 
  constructor(cacheDbNum: number, schedDbNum?: number, sub: boolean = true) {
   if (sub && !schedDbNum) throw new Error('[Cache] schedDbNum must be provided if sub is true');
 
   super();
 
-  logger.debug('[Cache] Initializing cache with cacheDb:', cacheDbNum, 'schedDb:', schedDbNum);
+  this.logger.debug('[Cache] Initializing cache with cacheDb:', cacheDbNum, 'schedDb:', schedDbNum);
 
   this.cacheDbNum = cacheDbNum;
   this.schedDbNum = schedDbNum || -1;
 
-  logger.silly('[Cache] Creating Redis connections...');
+  this.logger.silly('[Cache] Creating Redis connections...');
   const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
-  logger.log('[Cache] Using Redis host:', host);
+  this.logger.log('[Cache] Using Redis host:', host);
 
   const redisOptions = { host, db: cacheDbNum };
-  this.cacheDb = new Redis(redisOptions);
-  this.cacheSub = new Redis(redisOptions);
-  this.batcher = new PipelineBatcher(this.cacheDb);
+  this.cacheDb = createRedisWrapper(redisOptions);
+  this.cachePub = createRedisWrapper(redisOptions);
+  this.cacheSub = createRedisWrapper(redisOptions);
 
   if (schedDbNum) {
    const schedOptions = { host, db: schedDbNum };
-   this.scheduleDb = new Redis(schedOptions);
-   this.scheduleSub = new Redis(schedOptions);
+   this.scheduleDb = createRedisWrapper(schedOptions);
+   this.scheduleSub = createRedisWrapper(schedOptions);
   } else {
    this.scheduleDb = null;
    this.scheduleSub = null;
   }
 
-  logger.log('[Cache] Redis connections established. Subscribing to events:', sub);
+  this.logger.log('[Cache] Redis connections established. Subscribing to events:', sub);
   if (sub) this._sub();
 
-  logger.silly('[Cache] Initializing cache classes...');
-  this.audits = new AuditLogCache(this.cacheDb, this.batcher);
-  this.automods = new AutomodCache(this.cacheDb, this.batcher);
-  this.bans = new BanCache(this.cacheDb, this.batcher);
-  this.channels = new ChannelCache(this.cacheDb, this.batcher);
+  this.logger.silly('[Cache] Initializing cache classes...');
+  const q = this.queueSync.bind(this);
+  this.audits = new AuditLogCache(this.cacheDb, q);
+  this.automods = new AutomodCache(this.cacheDb, q);
+  this.bans = new BanCache(this.cacheDb, q);
+  this.channels = new ChannelCache(this.cacheDb, q);
   this.channelStatus = new ChannelStatusCache(this.cacheDb);
-  this.commands = new CommandCache(this.cacheDb, this.batcher);
-  this.commandPermissions = new CommandPermissionCache(this.cacheDb, this.batcher);
-  this.emojis = new EmojiCache(this.cacheDb, this.batcher);
-  this.events = new EventCache(this.cacheDb, this.batcher);
-  this.guilds = new GuildCache(this.cacheDb, this.batcher);
-  this.guildCommands = new GuildCommandCache(this.cacheDb, this.batcher);
-  this.integrations = new IntegrationCache(this.cacheDb, this.batcher);
-  this.invites = new InviteCache(this.cacheDb, this.batcher);
-  this.members = new MemberCache(this.cacheDb, this.batcher);
-  this.messages = new MessageCache(this.cacheDb, this.batcher);
-  this.reactions = new ReactionCache(this.cacheDb, this.batcher);
-  this.roles = new RoleCache(this.cacheDb, this.batcher);
-  this.soundboards = new SoundboardCache(this.cacheDb, this.batcher);
-  this.stages = new StageCache(this.cacheDb, this.batcher);
-  this.stickers = new StickerCache(this.cacheDb, this.batcher);
-  this.threads = new ThreadCache(this.cacheDb, this.batcher);
-  this.threadMembers = new ThreadMemberCache(this.cacheDb, this.batcher);
-  this.users = new UserCache(this.cacheDb, this.batcher);
-  this.voices = new VoiceCache(this.cacheDb, this.batcher);
-  this.webhooks = new WebhookCache(this.cacheDb, this.batcher);
+  this.commands = new CommandCache(this.cacheDb, q);
+  this.commandPermissions = new CommandPermissionCache(this.cacheDb, q);
+  this.emojis = new EmojiCache(this.cacheDb, q);
+  this.events = new EventCache(this.cacheDb, q);
+  this.guilds = new GuildCache(this.cacheDb, q);
+  this.guildCommands = new GuildCommandCache(this.cacheDb, q);
+  this.integrations = new IntegrationCache(this.cacheDb, q);
+  this.invites = new InviteCache(this.cacheDb, q);
+  this.members = new MemberCache(this.cacheDb, q);
+  this.messages = new MessageCache(this.cacheDb, q);
+  this.reactions = new ReactionCache(this.cacheDb, q);
+  this.roles = new RoleCache(this.cacheDb, q);
+  this.soundboards = new SoundboardCache(this.cacheDb, q);
+  this.stages = new StageCache(this.cacheDb, q);
+  this.stickers = new StickerCache(this.cacheDb, q);
+  this.threads = new ThreadCache(this.cacheDb, q);
+  this.threadMembers = new ThreadMemberCache(this.cacheDb, q);
+  this.users = new UserCache(this.cacheDb, q);
+  this.voices = new VoiceCache(this.cacheDb, q);
+  this.webhooks = new WebhookCache(this.cacheDb, q);
   this.pins = new PinCache(this.cacheDb);
-  this.welcomeScreens = new WelcomeScreenCache(this.cacheDb, this.batcher);
-  this.onboardings = new OnboardingCache(this.cacheDb, this.batcher);
-  this.eventUsers = new EventUserCache(this.cacheDb, this.batcher);
+  this.welcomeScreens = new WelcomeScreenCache(this.cacheDb, q);
+  this.onboardings = new OnboardingCache(this.cacheDb, q);
+  this.eventUsers = new EventUserCache(this.cacheDb, q);
 
-  this.cacheSub.on('message', this.callback);
-  this.scheduleSub?.on('message', this.callback);
-
-  this.startRecycling();
-
-  logger.log('[Cache] Cache initialization complete');
- }
-
- private startRecycling(): void {
-  this.recycleTimer = setInterval(() => {
-   this.recycleConnection().catch((err) => logger.error('[Cache] Recycle error:', err));
-  }, this.recycleIntervalMs);
- }
-
- async recycleConnection(): Promise<void> {
-  logger.log('[Cache] Starting connection recycle...');
-
-  await this.batcher.flush();
-
-  const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
-  const newDb = new Redis({
-   host,
-   db: this.cacheDbNum,
-  });
-
-  await new Promise<void>((resolve) => newDb.once('ready', resolve));
-
-  const oldDb = this.cacheDb;
-  this.cacheDb = newDb;
-  this.batcher = new PipelineBatcher(newDb);
-
-  setTimeout(() => {
-   oldDb.quit().catch(() => oldDb.disconnect());
-  }, 5000);
-
-  logger.log('[Cache] Connection recycled successfully');
+  this.logger.log('[Cache] Cache initialization complete');
  }
 
  readonly audits: AuditLogCache;
@@ -188,70 +157,70 @@ export class Cache extends EventEmitter {
  readonly eventUsers: EventUserCache;
 
  private _sub = () => {
-  logger.silly('[Cache] Configuring Redis keyspace notifications');
+  this.logger.silly('[Cache] Configuring Redis keyspace notifications');
   this.cacheDb.config('SET', 'notify-keyspace-events', 'Ex');
-  this.scheduleDb!.config('SET', 'notify-keyspace-events', 'Ex');
+  this.scheduleDb?.config('SET', 'notify-keyspace-events', 'Ex');
 
-  logger.debug('[Cache] Subscribing to Redis channels');
+  this.logger.debug('[Cache] Subscribing to Redis channels');
   this.cacheSub.subscribe(
    `__keyevent@${this.schedDbNum}__:expired`,
    ...Object.values(GatewayDispatchEvents),
    ...messageTypes,
   );
-  this.scheduleSub!.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
+  this.scheduleSub?.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
  };
 
- private callback = async (channel: string, key: string) => {
-  logger.silly('[Cache] Received message on channel:', channel);
+ queueSync(addToPipeline: (pipeline: ChainableCommanderInterface) => void): void {
+  this.pendingCommands.push(addToPipeline);
 
-  if (
-   messageTypes.includes(channel as MessageType) ||
-   Object.values(GatewayDispatchEvents).includes(channel as GatewayDispatchEvents)
-  ) {
-   const eventName = Object.entries(GatewayDispatchEvents).find(([, val]) => val === channel)?.[1];
-   if (!eventName) {
-    logger.debug('[Cache] No event name found for channel:', channel);
-    return;
+  if (!this.flushTimer && !this.flushing) {
+   this.flushTimer = setTimeout(() => this.flushPendingCommands(), 10);
+  }
+
+  if (this.pendingCommands.length % 1000 === 0) {
+   this.logger.log(`[Cache] Pending commands: ${this.pendingCommands.length}`);
+  }
+ }
+
+ private async flushPendingCommands(): Promise<void> {
+  this.flushTimer = null;
+
+  if (this.flushing) return;
+  this.flushing = true;
+
+  try {
+   while (this.pendingCommands.length > 0) {
+    const commands = this.pendingCommands;
+    this.pendingCommands = [];
+
+    this.logger.debug(`[Cache] Flushing ${commands.length} commands in single pipeline`);
+
+    const pipeline = this.cacheDb.pipeline();
+    for (const addCmd of commands) {
+     addCmd(pipeline);
+    }
+
+    const startTime = Date.now();
+    try {
+     await pipeline.exec();
+     if (commands.length > 100 || process.argv.includes('--debug')) {
+      this.logger.log(
+       `[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`,
+      );
+     }
+    } catch (err) {
+     this.logger.error('[Redis] Flush error:', err);
+    }
    }
-
-   let data = key ? JSON.parse(key) : null;
-   if (typeof data === 'string') data = JSON.parse(data);
-
-   if (!key.includes('669893888856817665')) return; // TODO disable dev filter
-
-   logger.silly('[Cache] Emitting event:', eventName);
-   logger.silly('[Cache] Event data:', data);
-   this.emit(eventName, data);
+  } finally {
+   this.flushing = false;
+   if (this.pendingCommands.length > 0) {
+    this.flushTimer = setTimeout(() => this.flushPendingCommands(), 10);
+   }
   }
+ }
 
-  if (
-   channel !== `__keyevent@${this.scheduleDb!.options.db}__:expired` &&
-   channel !== `__keyevent@${this.cacheDb.options.db}__:expired`
-  ) {
-   return;
-  }
-
-  if (key.includes('scheduled-data:')) return;
-
-  const keyArgs = key.split(/:/g).splice(0, 3);
-  const eventName = keyArgs.filter((k) => Number.isNaN(+k)).join('/');
-
-  logger.debug('[Cache] Key expired:', key, '-> event:', eventName);
-
-  const dataKey = key.replace('scheduled:', 'scheduled-data:');
-  const [dbNum] = channel.split('@')[1].split(':');
-  const db = dbNum === String(this.cacheDbNum) ? this.cacheDb : this.scheduleDb!;
-
-  const value = await db.get(dataKey);
-  db.expire(dataKey, 10);
-
-  logger.silly('[Cache] Emitting expire event for:', eventName);
-  this.emit('expire', { eventName, value: value ? JSON.parse(value) : null });
- };
-
- async execPipeline<T>(
-  buildPipeline: (pipeline: ReturnType<Redis['pipeline']>) => void,
- ): Promise<T> {
+ async execPipeline<T>(buildPipeline: (pipeline: ChainableCommanderInterface) => void): Promise<T> {
   if (this.pipelineInFlight >= this.maxConcurrentPipelines) {
    await new Promise<void>((resolve) => this.pipelineQueue.push(resolve));
   }
@@ -267,9 +236,7 @@ export class Cache extends EventEmitter {
    const values: unknown[] = [];
    for (let i = 0; i < result.length; i++) {
     values.push(result[i][1]);
-    (result as unknown[])[i] = null;
    }
-   result.length = 0;
    return values as T;
   } finally {
    this.pipelineInFlight--;
@@ -278,5 +245,23 @@ export class Cache extends EventEmitter {
     if (next) process.nextTick(next);
    }
   }
+ }
+
+ async onRoleDelete(guildId: string, roleId: string): Promise<number> {
+  this.logger.debug(`[Cache] Cascade: Role ${roleId} deleted from guild ${guildId}`);
+
+  await this.roles.del(roleId);
+  const updatedCount = await this.members.removeRoleFromAllMembers(guildId, roleId);
+  this.logger.debug(`[Cache] Cascade: Updated ${updatedCount} members`);
+  return updatedCount;
+ }
+
+ async onChannelDelete(guildId: string, channelId: string): Promise<number> {
+  this.logger.debug(`[Cache] Cascade: Channel ${channelId} deleted from guild ${guildId}`);
+
+  await this.channels.del(channelId);
+  const deletedCount = await this.threads.deleteByParent(guildId, channelId);
+  this.logger.debug(`[Cache] Cascade: Deleted ${deletedCount} threads`);
+  return deletedCount;
  }
 }

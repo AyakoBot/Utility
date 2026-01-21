@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIWebhook } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RWebhook = Omit<APIWebhook, 'user' | 'avatar' | 'guild_id'> & {
  user_id: string | null;
@@ -32,8 +31,8 @@ export default class WebhookCache extends Cache<
 > {
  public keys = RWebhookKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'webhooks', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'webhooks', queueFn);
  }
 
  public static avatarUrl(avatar: string, webhookId: string) {

@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIBan } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RBan = Omit<APIBan, 'user'> & { user_id: string; guild_id: string };
 
@@ -13,8 +12,8 @@ export const RBanKeys = ['reason', 'user_id', 'guild_id'] as const;
 export default class BanCache extends Cache<APIBan> {
  public keys = RBanKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'bans', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'bans', queueFn);
  }
 
  async set(data: APIBan, guildId: string) {

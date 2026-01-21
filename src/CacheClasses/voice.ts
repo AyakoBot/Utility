@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { APIVoiceState } from 'discord-api-types/v10';
-import type Redis from 'ioredis';
 
-import type { PipelineBatcher } from '../PipelineBatcher.js';
+import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
-import Cache from './Base/Cache.js';
+import Cache, { type QueueFn } from './Base/Cache.js';
 
 export type RVoiceState = Omit<APIVoiceState, 'member' | 'guild_id'> & { guild_id: string };
 
@@ -26,8 +25,8 @@ export const RVoiceStateKeys = [
 export default class VoiceCache extends Cache<APIVoiceState> {
  public keys = RVoiceStateKeys;
 
- constructor(redis: Redis, batcher: PipelineBatcher) {
-  super(redis, 'voices', batcher);
+ constructor(redis: RedisWrapperInterface, queueFn?: QueueFn) {
+  super(redis, 'voices', queueFn);
  }
 
  async set(data: APIVoiceState) {

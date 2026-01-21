@@ -1,9 +1,9 @@
-import type Redis from 'ioredis';
+import type { RedisWrapperInterface } from '../../RedisWrapper.js';
 
 export default class StringCache {
  protected prefix: string;
  protected historyPrefix: string;
- public redis: Redis;
+ public redis: RedisWrapperInterface;
 
  private dedupeScript = `
  local cacheKey = KEYS[1]
@@ -19,6 +19,7 @@ export default class StringCache {
  -- Set current value
  redis.call('HSET', cacheKey, currentKey, value)
  redis.call('HEXPIRE', cacheKey, ttl, 'FIELDS', 1, currentKey)
+ redis.call('EXPIRE', cacheKey, ttl)
 
  -- Only create snapshot if value changed
  if previousValue ~= value then
@@ -27,13 +28,14 @@ export default class StringCache {
   redis.call('HEXPIRE', cacheKey, ttl, 'FIELDS', 1, timestampKey)
   redis.call('HSET', historyKey, id, timestamp)
   redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, id)
+  redis.call('EXPIRE', historyKey, ttl)
   return 1
  end
 
  return 0
  `;
 
- constructor(redis: Redis, type: string) {
+ constructor(redis: RedisWrapperInterface, type: string) {
   this.prefix = `cache:${type}`;
   this.historyPrefix = `history:${type}`;
   this.redis = redis;
@@ -44,14 +46,12 @@ export default class StringCache {
  }
 
  async getAll(keystoreId: string): Promise<Record<string, string>> {
-  const all = await this.redis.hgetall(this.key(keystoreId));
+  const all = await this.redis.hscanAll(this.key(keystoreId), '*:current');
   const current: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(all)) {
-   if (key.endsWith(':current')) {
-    const id = key.slice(0, -8);
-    current[id] = value;
-   }
+   const id = key.slice(0, -8);
+   current[id] = value;
   }
 
   return current;
