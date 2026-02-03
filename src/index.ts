@@ -1,6 +1,6 @@
 //#region Classes
 export * from './Cache.js';
-export * from './Logger.js';
+export { default as logger } from './Logger.js';
 export {
  createRedisWrapper,
  isRunningInBun,
