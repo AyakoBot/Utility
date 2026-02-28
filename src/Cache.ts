@@ -162,11 +162,46 @@ export class Cache extends EventEmitter {
   this.scheduleDb?.config('SET', 'notify-keyspace-events', 'Ex');
 
   this.logger.debug('[Cache] Subscribing to Redis channels');
+
+  const gatewayEvents = new Set(Object.values(GatewayDispatchEvents));
+  const msgTypes = new Set(messageTypes);
+
+  this.cacheSub.on('message', (...args: unknown[]) => {
+   const channel = args[0] as string;
+   const message = args[1] as string;
+
+   if (
+    !gatewayEvents.has(channel as GatewayDispatchEvents) &&
+    !msgTypes.has(channel as MessageType)
+   ) {
+    return;
+   }
+
+   this.logger.silly('[Cache] Received event:', channel);
+   try {
+    let data = JSON.parse(message);
+    if (typeof data === 'string') data = JSON.parse(data);
+    this.emit(channel, data);
+   } catch (err) {
+    this.logger.error(`[Cache] Failed to parse message on ${channel}:`, err);
+   }
+  });
+
   this.cacheSub.subscribe(
    `__keyevent@${this.schedDbNum}__:expired`,
    ...Object.values(GatewayDispatchEvents),
    ...messageTypes,
   );
+
+  this.scheduleSub?.on('message', (...args: unknown[]) => {
+   const channel = args[0] as string;
+   const key = args[1] as string;
+
+   if (channel === `__keyevent@${this.schedDbNum}__:expired`) {
+    this.logger.silly('[Cache] Schedule expired:', key);
+    this.emit('scheduleExpired', key);
+   }
+  });
   this.scheduleSub?.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
  };
 
