@@ -27,7 +27,7 @@ export const RWebhookKeys = [
 ] as const;
 
 export default class WebhookCache extends Cache<
- APIWebhook & { user_id: string | null; avatar_url: string | null }
+ APIWebhook & { user_id: string | null; avatar_url: string | null; guild_id: string }
 > {
  public keys = RWebhookKeys;
 
@@ -40,7 +40,8 @@ export default class WebhookCache extends Cache<
  }
 
  async set(data: APIWebhook) {
-  const rData = this.apiToR(data);
+  if (!data.guild_id) return false;
+  const rData = this.apiToR(data as APIWebhook & { guild_id: string });
   if (!rData) return false;
   if (!rData.guild_id || !rData.id) return false;
 
@@ -52,9 +53,7 @@ export default class WebhookCache extends Cache<
   return super.get(guildId, webhookId);
  }
 
- apiToR(data: APIWebhook) {
-  if (!data.guild_id) return false;
-
+ apiToR(data: APIWebhook & { guild_id: string }) {
   const keysNotToCache = Object.keys(data).filter(
    (key): key is keyof typeof data => !this.keys.includes(key as (typeof this.keys)[number]),
   );
