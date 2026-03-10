@@ -33,6 +33,7 @@ export interface RedisWrapperInterface {
 
  // Expiration
  expire(key: string, seconds: number): Promise<number>;
+ expiretime(key: string): Promise<number>;
 
  // Scripting
  eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown>;
@@ -68,6 +69,7 @@ export interface ChainableCommanderInterface {
  hkeys(key: string): this;
  hdel(key: string, ...fields: string[]): this;
  expire(key: string, seconds: number): this;
+ expiretime(key: string): this;
  hexpire(key: string, seconds: number, ...args: unknown[]): this;
  eval(script: string, numKeys: number, ...args: unknown[]): this;
  call(command: string, ...args: unknown[]): this;
