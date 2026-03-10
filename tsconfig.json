@@ -28,7 +28,7 @@
   "noUnusedParameters": true,
   "noImplicitReturns": true,
   "noFallthroughCasesInSwitch": true,
-  "moduleResolution": "node",
+  "moduleResolution": "bundler",
   "baseUrl": ".",
   "typeRoots": ["./node_modules/@types"],
   "esModuleInterop": true,
