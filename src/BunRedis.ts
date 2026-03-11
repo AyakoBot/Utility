@@ -11,6 +11,7 @@ export type BunChainableCommander = {
  hkeys(key: string): BunChainableCommander;
  hdel(key: string, ...fields: string[]): BunChainableCommander;
  expire(key: string, seconds: number): BunChainableCommander;
+ expiretime(key: string): BunChainableCommander;
  hexpire(key: string, seconds: number, ...args: unknown[]): BunChainableCommander;
  eval(script: string, numKeys: number, ...args: unknown[]): BunChainableCommander;
  call(command: string, ...args: unknown[]): BunChainableCommander;
@@ -262,6 +263,10 @@ export class BunRedisWrapper {
   return this.queueRequest('EXPIRE', [key, seconds]) as Promise<number>;
  }
 
+ async expiretime(key: string): Promise<number> {
+  return this.queueRequest('EXPIRETIME', [key]) as Promise<number>;
+ }
+
  async eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown> {
   return this.queueRequest('EVAL', [script, numKeys, ...args]);
  }
@@ -332,6 +337,10 @@ export class BunRedisWrapper {
    },
    expire(key: string, seconds: number) {
     commands.push({ method: 'EXPIRE', args: [key, seconds] });
+    return this;
+   },
+   expiretime(key: string) {
+    commands.push({ method: 'EXPIRETIME', args: [key] });
     return this;
    },
    hexpire(key: string, seconds: number, ...args: unknown[]) {

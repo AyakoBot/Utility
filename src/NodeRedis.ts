@@ -138,6 +138,10 @@ export class NodeRedisWrapper {
   return this.client.expire(key, seconds);
  }
 
+ async expiretime(key: string): Promise<number> {
+  return this.client.expiretime(key);
+ }
+
  async eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown> {
   return this.client.eval(script, numKeys, ...args.map(String));
  }

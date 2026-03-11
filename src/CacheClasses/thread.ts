@@ -56,7 +56,8 @@ export default class ThreadCache extends Cache<
  }
 
  async set(data: Omit<APIThreadChannel, 'position'>) {
-  const rData = this.apiToR(data);
+  if (!data.guild_id) return false;
+  const rData = this.apiToR(data as Omit<APIThreadChannel, 'position'> & { guild_id: string });
   if (!rData) return false;
   if (!rData.guild_id || !rData.id) return false;
 
@@ -68,8 +69,7 @@ export default class ThreadCache extends Cache<
   return super.get(threadId);
  }
 
- apiToR(data: Omit<APIThreadChannel, 'position'>) {
-  if (!data.guild_id) return false;
+ apiToR(data: Omit<APIThreadChannel, 'position'> & { guild_id: string }) {
   const keysNotToCache = Object.keys(data).filter(
    (key): key is keyof typeof data => !this.keys.includes(key as (typeof this.keys)[number]),
   );
