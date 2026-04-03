@@ -1,5 +1,15 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import type { APIGuildChannel, ChannelType } from 'discord-api-types/v10';
+import type {
+ APIGuildCategoryChannel,
+ APIGuildChannel,
+ APIGuildForumChannel,
+ APIGuildMediaChannel,
+ APIGuildStageVoiceChannel,
+ APIGuildVoiceChannel,
+ APINewsChannel,
+ APITextChannel,
+ ChannelType,
+} from 'discord-api-types/v10';
 
 import type { RedisWrapperInterface } from '../RedisWrapper.js';
 
@@ -15,9 +25,20 @@ export type RChannelTypes =
  | ChannelType.GuildText
  | ChannelType.GuildVoice;
 
-export type RChannel = Omit<APIGuildChannel<RChannelTypes>, 'guild'> & {
- guild_id: string;
-};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
+
+type AllGuildChannelAPIs =
+ | APITextChannel
+ | APINewsChannel
+ | APIGuildCategoryChannel
+ | APIGuildVoiceChannel
+ | APIGuildStageVoiceChannel
+ | APIGuildForumChannel
+ | APIGuildMediaChannel
+ | APIGuildChannel<ChannelType.GuildDirectory>;
+
+export type RChannel = DistributiveOmit<AllGuildChannelAPIs, 'guild'> & { guild_id: string };
 
 export const RChannelKeys = [
  'name',
