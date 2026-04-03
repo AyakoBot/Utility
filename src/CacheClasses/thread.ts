@@ -56,12 +56,12 @@ export default class ThreadCache extends Cache<
  }
 
  async set(data: Omit<APIThreadChannel, 'position'>) {
-  if (!data.guild_id) return false;
+  if (!data.guild_id || !data.parent_id) return false;
   const rData = this.apiToR(data as Omit<APIThreadChannel, 'position'> & { guild_id: string });
   if (!rData) return false;
-  if (!rData.guild_id || !rData.id) return false;
+  if (!rData.guild_id || !rData.id || !rData.parent_id) return false;
 
-  await this.setValue(rData, [rData.guild_id], [rData.id]);
+  await this.setValue(rData, [rData.guild_id, rData.parent_id], [rData.id]);
   return true;
  }
 
@@ -83,18 +83,29 @@ export default class ThreadCache extends Cache<
  }
 
  async deleteByParent(guildId: string, parentId: string): Promise<number> {
-  const allThreads = await this.getAll(guildId);
-  const childThreads = allThreads.filter((t) => t.parent_id === parentId);
+  const childThreads = await this.getAll(guildId, parentId);
   if (childThreads.length === 0) return 0;
 
   const pipeline = this.redis.pipeline();
 
   for (const thread of childThreads) {
    pipeline.del(this.key(thread.id, 'current'));
-   pipeline.hdel(this.keystore(guildId), this.key(thread.id));
   }
+  pipeline.del(this.keystore(guildId, parentId));
 
   await pipeline.exec();
   return childThreads.length;
+ }
+
+ async getAllGuildKeys(
+  guildId: string,
+  channelIds: string[],
+ ): Promise<{ keystoreKeys: string[]; dataKeys: string[] }> {
+  const keystoreKeys = channelIds.map((cId) => this.keystore(guildId, cId));
+  if (keystoreKeys.length === 0) return { keystoreKeys: [], dataKeys: [] };
+
+  const dataKeyBatches = await Promise.all(keystoreKeys.map((k) => this.redis.hscanKeys(k)));
+
+  return { keystoreKeys, dataKeys: dataKeyBatches.flat() };
  }
 }
