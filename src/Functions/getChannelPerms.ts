@@ -11,7 +11,9 @@ export default async function (
  userId: string,
  channelId: string,
 ): Promise<{ allow: bigint; deny: bigint; neutral: bigint; debug: number }> {
- const channel = await this.channels.get(channelId);
+ const channel =
+  (await this.channels.get(channelId)) ||
+  (await this.threads.get(channelId).then((res) => this.channels.get(res?.parent_id || '')));
  if (!channel) return { allow: 0n, deny: 0n, neutral: 0n, debug: 4 };
 
  const member = await this.members.get(guildId, userId);
