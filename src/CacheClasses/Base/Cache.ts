@@ -244,7 +244,7 @@ export default abstract class Cache<
  }
 
  getTimes(...ids: string[]): Promise<number[]> {
-  return this.redis.hkeys(this.key(...ids)).then((times) => times.map((t) => Number(t)));
+  return this.redis.hvals(this.history(...ids)).then((times) => times.map((t) => Number(t)));
  }
 
  private setKeystore(

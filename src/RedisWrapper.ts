@@ -24,6 +24,7 @@ export interface RedisWrapperInterface {
  hget(key: string, field: string): Promise<string | null>;
  hgetall(key: string): Promise<Record<string, string>>;
  hkeys(key: string): Promise<string[]>;
+ hvals(key: string): Promise<string[]>;
  hdel(key: string, ...fields: string[]): Promise<number>;
 
  // HSCAN helpers (non-blocking alternatives to HGETALL)
@@ -67,6 +68,7 @@ export interface ChainableCommanderInterface {
  hget(key: string, field: string): this;
  hgetall(key: string): this;
  hkeys(key: string): this;
+ hvals(key: string): this;
  hdel(key: string, ...fields: string[]): this;
  expire(key: string, seconds: number): this;
  expiretime(key: string): this;

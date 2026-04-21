@@ -129,6 +129,10 @@ export class NodeRedisWrapper {
   return this.client.hkeys(key);
  }
 
+ async hvals(key: string): Promise<string[]> {
+  return this.client.hvals(key);
+ }
+
  async hdel(key: string, ...fields: string[]): Promise<number> {
   if (fields.length === 0) return 0;
   return this.client.hdel(key, ...fields);

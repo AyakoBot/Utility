@@ -9,6 +9,7 @@ export type BunChainableCommander = {
  hget(key: string, field: string): BunChainableCommander;
  hgetall(key: string): BunChainableCommander;
  hkeys(key: string): BunChainableCommander;
+ hvals(key: string): BunChainableCommander;
  hdel(key: string, ...fields: string[]): BunChainableCommander;
  expire(key: string, seconds: number): BunChainableCommander;
  expiretime(key: string): BunChainableCommander;
@@ -254,6 +255,10 @@ export class BunRedisWrapper {
   return this.queueRequest('HKEYS', [key]) as Promise<string[]>;
  }
 
+ async hvals(key: string): Promise<string[]> {
+  return this.queueRequest('HVALS', [key]) as Promise<string[]>;
+ }
+
  async hdel(key: string, ...fields: string[]): Promise<number> {
   if (fields.length === 0) return 0;
   return this.queueRequest('HDEL', [key, ...fields]) as Promise<number>;
@@ -328,6 +333,10 @@ export class BunRedisWrapper {
    },
    hkeys(key: string) {
     commands.push({ method: 'HKEYS', args: [key] });
+    return this;
+   },
+   hvals(key: string) {
+    commands.push({ method: 'HVALS', args: [key] });
     return this;
    },
    hdel(key: string, ...fields: string[]) {
