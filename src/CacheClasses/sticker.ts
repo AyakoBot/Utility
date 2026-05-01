@@ -33,7 +33,7 @@ export default class StickerCache extends Cache<APISticker> {
  }
 
  public static getUrl(stickerId: string, format: StickerFormatType = StickerFormatType.PNG) {
-  return `https://cdn.discordapp.com/stickers/${stickerId}.${String(StickerFormatType[format]).toLowerCase()}`;
+  return `https://media.discordapp.net/stickers/${stickerId}.${String(StickerFormatType[format]).toLowerCase()}`;
  }
 
  async set(data: APISticker) {
