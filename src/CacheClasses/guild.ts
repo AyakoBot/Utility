@@ -104,7 +104,7 @@ export default class GuildCache extends Cache<APIGuild> {
   const rData = structuredClone(data) as unknown as RGuild;
   rData.roles = data.roles.map((r) => r.id);
   rData.emojis = data.emojis.map((e) => e.id).filter((e): e is string => !!e);
-  rData.stickers = data.stickers.map((s) => s.id);
+  rData.stickers = data.stickers?.map((s) => s.id) || [];
   rData.icon_url = data.icon ? GuildCache.getIconUrl(data.icon, data.id) : null;
   rData.discovery_splash_url = data.discovery_splash
    ? GuildCache.getPublicSplashUrl(data.discovery_splash, data.id)
