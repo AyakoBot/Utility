@@ -21,5 +21,7 @@ export { default as getChannelPerms } from './Functions/getChannelPerms.js';
 export { default as getGuildPerms } from './Functions/getGuildPerms.js';
 export { default as getPathFromError } from './Functions/getPathFromError.js';
 export { default as getRandom } from './Functions/getRandom.js';
+export { default as sleep } from './Functions/sleep.js';
+export { default as txtFileWriter } from './Functions/txtFileWriter.js';
 export { deserialize, serialize } from './Serialization.js';
 //#endregion
