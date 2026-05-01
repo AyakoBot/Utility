@@ -12,24 +12,24 @@
   },
   "dependencies": {
     "@discordjs/core": "^2.4.0",
-    "cbor-x": "^1.6.0",
-    "discord-api-types": "0.38.41",
-    "dotenv": "^17.3.1",
-    "ioredis": "^5.10.0"
+    "cbor-x": "^1.6.4",
+    "discord-api-types": "0.38.45",
+    "dotenv": "^17.4.1",
+    "ioredis": "^5.10.1"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.28.6",
     "@babel/eslint-plugin": "^7.27.1",
-    "@eslint/compat": "^2.0.2",
+    "@eslint/compat": "^2.0.5",
     "@eslint/js": "^10.0.1",
-    "@swc/cli": "^0.8.0",
-    "@swc/core": "1.15.18",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "1.15.24",
     "@total-typescript/ts-reset": "^0.6.1",
     "@types/bun": "latest",
-    "@types/node": "^25.3.5",
-    "@typescript-eslint/eslint-plugin": "^8.56.1",
-    "@typescript-eslint/parser": "^8.56.1",
-    "eslint": "^10.0.2",
+    "@types/node": "^25.6.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
+    "eslint": "^10.2.0",
     "eslint-config-airbnb": "^19.0.4",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
@@ -38,9 +38,9 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-prettier": "^5.5.5",
     "globals": "^17.4.0",
-    "prettier": "^3.8.1",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.56.1"
+    "prettier": "^3.8.2",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.1"
   },
   "packageManager": "pnpm@10.19.0",
   "engines": {
