@@ -221,20 +221,28 @@ export default abstract class Cache<
  abstract set(data: T, ...additionalArgs: string[]): Promise<boolean>;
 
  get(...ids: string[]): Promise<null | DeriveRFromAPI<T, K>> {
+  if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
+
   return this.redis.get(this.key(...ids, 'current')).then((data) => this.stringToData(data));
  }
 
  getAt(time: number, ...ids: string[]): Promise<null | DeriveRFromAPI<T, K>> {
+  if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
+
   return this.redis.get(this.key(...ids, String(time))).then((data) => this.stringToData(data));
  }
 
  getAllTimes(...ids: string[]): Promise<Array<DeriveRFromAPI<T, K>>> {
+  if (ids.some((i) => i.length === 0)) return Promise.resolve([]);
+
   return this.getTimes(...ids).then((times) =>
    Promise.all(times.map((t) => this.getAt(Number(t), ...ids))).then((d) => d.filter((v) => !!v)),
   );
  }
 
  getAll(...keystoreIds: string[]): Promise<Array<DeriveRFromAPI<T, K>>> {
+  if (keystoreIds.some((i) => i.length === 0)) return Promise.resolve([]);
+
   return this.redis
    .hkeys(this.keystore(...keystoreIds))
    .then((keys) => keys.map((k) => k.split(':').slice(2).join(':')))
@@ -244,6 +252,8 @@ export default abstract class Cache<
  }
 
  getTimes(...ids: string[]): Promise<number[]> {
+  if (ids.some((i) => i.length === 0)) return Promise.resolve([]);
+
   return this.redis.hvals(this.history(...ids)).then((times) => times.map((t) => Number(t)));
  }
 
@@ -292,6 +302,7 @@ export default abstract class Cache<
  }
 
  del(...ids: string[]) {
+  if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
   return this.redis.del(this.key(...ids, 'current'));
  }
 
