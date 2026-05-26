@@ -14,6 +14,7 @@ export {
 //#region Types
 export * from './Types/index.js';
 export * from './Types/Redis.js';
+export { LogLevel } from './Logger.js';
 //#endregion
 
 //#region Functions
@@ -23,5 +24,7 @@ export { default as getPathFromError } from './Functions/getPathFromError.js';
 export { default as getRandom } from './Functions/getRandom.js';
 export { default as sleep } from './Functions/sleep.js';
 export { default as txtFileWriter } from './Functions/txtFileWriter.js';
+export { default as ScopedLogger } from './ScopedLogger.js';
 export { deserialize, serialize } from './Serialization.js';
+export { default as logLocation } from './Functions/logLocation.js';
 //#endregion

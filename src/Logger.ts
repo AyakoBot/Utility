@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { createWriteStream, mkdirSync } from 'fs';
+import { inspect } from 'util';
 
 export enum LogLevel {
  silly = 'silly', // silly, debug, info, warn, error
@@ -10,7 +11,7 @@ export enum LogLevel {
  silent = 'silent', // no logs
 }
 
-class Logger {
+export class Logger {
  level: LogLevel = LogLevel.info;
  readonly file = createWriteStream(
   `logs/console_${new Date().getDate()}-${new Date().getMonth() + 1}-${new Date().getFullYear()}.log`,
@@ -42,9 +43,9 @@ class Logger {
   if (levels.indexOf(level) < levels.indexOf(this.level)) return;
 
   const message = data.map(Logger.stringify).join(' ');
-  this.file.write(`${this.getDebugInfo()} ${message}\n`);
+  this.file.write(`${this.getDebugInfo()} ${inspect(message)}\n`);
   // eslint-disable-next-line no-console
-  console.log(message);
+  console.log(`[${level}]`, inspect(message));
  };
 
  log = (...data: unknown[]) => this.writeLog(LogLevel.info, ...data);
