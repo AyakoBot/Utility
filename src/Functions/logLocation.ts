@@ -1,4 +1,5 @@
 import { inspect } from 'node:util';
+
 import type { Logger, LogLevel } from '../Logger.js';
 
 export default function (this: Logger, level: LogLevel, text?: string) {

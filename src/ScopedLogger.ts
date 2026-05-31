@@ -1,6 +1,7 @@
 import { inspect } from 'util';
-import logger, { Logger, LogLevel } from './Logger.js';
+
 import logLocation from './Functions/logLocation.js';
+import logger, { Logger, LogLevel } from './Logger.js';
 
 export default class ScopedLogger extends Logger {
  logger = logger;
