@@ -58,7 +58,9 @@ import type { RVoiceState } from '../voice.js';
 import type { RWebhook } from '../webhook.js';
 import type { RWelcomeScreen } from '../welcomeScreen.js';
 
-export type QueueFn = (addToPipeline: (pipeline: ChainableCommanderInterface) => void) => void;
+export type QueueFn = (
+ addToPipeline: (pipeline: ChainableCommanderInterface) => void,
+) => Promise<void>;
 
 type GuildBasedCommand<T extends boolean> = T extends true
  ? APIApplicationCommand & { guild_id: string }
@@ -288,11 +290,10 @@ export default abstract class Cache<
   }
 
   if (this.queueFn) {
-   this.queueFn((p) => {
+   return this.queueFn((p) => {
     p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
     if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
    });
-   return null;
   }
 
   const p = this.redis.pipeline();

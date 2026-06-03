@@ -49,7 +49,11 @@ export class Cache extends EventEmitter {
  private pipelineInFlight = 0;
  private readonly maxConcurrentPipelines = 10;
  private pipelineQueue: Array<() => void> = [];
- private pendingCommands: Array<(p: ChainableCommanderInterface) => void> = [];
+ private pendingCommands: Array<{
+  add: (p: ChainableCommanderInterface) => void;
+  resolve: () => void;
+ }> = [];
+
  private flushTimer: ReturnType<typeof setTimeout> | null = null;
  private flushing = false;
 
@@ -205,16 +209,18 @@ export class Cache extends EventEmitter {
   this.scheduleSub?.subscribe(`__keyevent@${this.schedDbNum}__:expired`);
  };
 
- queueSync(addToPipeline: (pipeline: ChainableCommanderInterface) => void): void {
-  this.pendingCommands.push(addToPipeline);
+ queueSync(addToPipeline: (pipeline: ChainableCommanderInterface) => void): Promise<void> {
+  return new Promise<void>((resolve) => {
+   this.pendingCommands.push({ add: addToPipeline, resolve });
 
-  if (!this.flushTimer && !this.flushing) {
-   this.flushTimer = setTimeout(() => this.flushPendingCommands(), 10);
-  }
+   if (!this.flushTimer && !this.flushing) {
+    this.flushTimer = setTimeout(() => this.flushPendingCommands(), 10);
+   }
 
-  if (this.pendingCommands.length % 1000 === 0) {
-   this.logger.log(`[Cache] Pending commands: ${this.pendingCommands.length}`);
-  }
+   if (this.pendingCommands.length % 1000 === 0) {
+    this.logger.log(`[Cache] Pending commands: ${this.pendingCommands.length}`);
+   }
+  });
  }
 
  private async flushPendingCommands(): Promise<void> {
@@ -231,8 +237,8 @@ export class Cache extends EventEmitter {
     this.logger.debug(`[Cache] Flushing ${commands.length} commands in single pipeline`);
 
     const pipeline = this.cacheDb.pipeline();
-    for (const addCmd of commands) {
-     addCmd(pipeline);
+    for (const cmd of commands) {
+     cmd.add(pipeline);
     }
 
     const startTime = Date.now();
@@ -245,6 +251,8 @@ export class Cache extends EventEmitter {
      }
     } catch (err) {
      this.logger.error('[Redis] Flush error:', err);
+    } finally {
+     for (const cmd of commands) cmd.resolve();
     }
    }
   } finally {
