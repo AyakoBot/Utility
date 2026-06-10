@@ -27,4 +27,5 @@ export { default as txtFileWriter } from './Functions/txtFileWriter.js';
 export { default as ScopedLogger } from './ScopedLogger.js';
 export { deserialize, serialize } from './Serialization.js';
 export { default as logLocation } from './Functions/logLocation.js';
+export { default as getRoleHierarchy } from './Functions/getRoleHierarchy.js';
 //#endregion
