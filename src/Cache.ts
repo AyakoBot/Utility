@@ -34,6 +34,7 @@ import WelcomeScreenCache from './CacheClasses/welcomeScreen.js';
 import logger from './Logger.js';
 import {
  createRedisWrapper,
+ resolveRedisHost,
  type ChainableCommanderInterface,
  type RedisWrapperInterface,
 } from './RedisWrapper.js';
@@ -75,7 +76,7 @@ export class Cache extends EventEmitter {
   this.schedDbNum = schedDbNum || -1;
 
   this.logger.silly('[Cache] Creating Redis connections...');
-  const host = process.argv.includes('--local') ? '127.0.0.1' : 'redis';
+  const host = resolveRedisHost();
   this.logger.log('[Cache] Using Redis host:', host);
 
   const redisOptions = { host, db: cacheDbNum };

@@ -5,6 +5,7 @@ export {
  RedisWrapper,
  createRedisWrapper,
  isRunningInBun,
+ resolveRedisHost,
  type ChainableCommanderInterface,
  type RedisWrapperInterface,
  type RedisWrapperOptions,

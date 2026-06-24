@@ -98,6 +98,13 @@ export const createRedisWrapper = (options?: RedisWrapperOptions): RedisWrapperI
  new RedisWrapperClass(options);
 
 /**
+ * Resolve the Redis host for this deployment: 127.0.0.1 under `--local`, the
+ * `redis` compose service otherwise. Single source for the host contract.
+ */
+export const resolveRedisHost = (local = process.argv.includes('--local')): string =>
+ (local ? '127.0.0.1' : 'redis');
+
+/**
  * The Redis wrapper class for the current runtime.
  * Use this if you need to extend or type-check against the class.
  */
