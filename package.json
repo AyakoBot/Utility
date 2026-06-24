@@ -4,45 +4,45 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rm -f tsconfig.tsbuildinfo && pnpm tsc --emitDeclarationOnly && swc src -d dist --strip-leading-paths",
+    "build": "pnpm tsc --emitDeclarationOnly && swc src -d dist --strip-leading-paths",
     "lint": "pnpx eslint 'src/**/*.ts' --fix"
   },
   "exports": {
     ".": "./dist/index.js"
   },
   "dependencies": {
-    "@discordjs/core": "^2.4.0",
+    "@discordjs/core": "^2.5.0",
     "cbor-x": "^1.6.4",
-    "discord-api-types": "0.38.48",
-    "dotenv": "^17.4.1",
-    "ioredis": "^5.10.1"
+    "discord-api-types": "0.38.49",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1"
   },
   "devDependencies": {
-    "@babel/eslint-parser": "^7.28.6",
-    "@babel/eslint-plugin": "^7.27.1",
-    "@eslint/compat": "^2.0.5",
+    "@babel/eslint-parser": "^8.0.1",
+    "@babel/eslint-plugin": "^8.0.1",
+    "@eslint/compat": "^2.1.0",
     "@eslint/js": "^10.0.1",
     "@swc/cli": "^0.8.1",
-    "@swc/core": "1.15.24",
+    "@swc/core": "1.15.43",
     "@total-typescript/ts-reset": "^0.6.1",
     "@types/bun": "latest",
-    "@types/node": "^25.6.0",
-    "@typescript-eslint/eslint-plugin": "^8.58.1",
-    "@typescript-eslint/parser": "^8.58.1",
-    "eslint": "^10.2.0",
+    "@types/node": "^26.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.0",
+    "@typescript-eslint/parser": "^8.62.0",
+    "eslint": "^10.5.0",
     "eslint-config-airbnb": "^19.0.4",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-import-resolver-typescript": "^4.4.4",
-    "eslint-plugin-import-x": "^4.16.2",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.17.0",
     "eslint-plugin-json": "^4.0.1",
     "eslint-plugin-jsx-a11y": "^6.10.2",
-    "eslint-plugin-prettier": "^5.5.5",
-    "globals": "^17.4.0",
-    "prettier": "^3.8.2",
-    "typescript": "^6.0.2",
-    "typescript-eslint": "^8.58.1"
+    "eslint-plugin-prettier": "^5.5.6",
+    "globals": "^17.7.0",
+    "prettier": "^3.8.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0"
   },
-  "packageManager": "pnpm@11.6.0",
+  "packageManager": "pnpm@11.8.0",
   "engines": {
     "node": "^25.6.0",
     "pnpm": "^11.6.0"
