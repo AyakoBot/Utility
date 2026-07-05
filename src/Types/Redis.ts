@@ -1,3 +1,4 @@
+export * from '../CacheClasses/auditlog.js';
 export * from '../CacheClasses/automod.js';
 export * from '../CacheClasses/ban.js';
 export * from '../CacheClasses/channel.js';
