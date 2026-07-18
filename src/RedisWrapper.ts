@@ -32,9 +32,34 @@ export interface RedisWrapperInterface {
  hscanKeys(key: string, match?: string, batchSize?: number): Promise<string[]>;
  hscanAll(key: string, match?: string, batchSize?: number): Promise<Record<string, string>>;
 
+ zadd(key: string, ...args: unknown[]): Promise<number>;
+ zcard(key: string): Promise<number>;
+ zcount(key: string, min: string | number, max: string | number): Promise<number>;
+ zrange(
+  key: string,
+  start: string | number,
+  stop: string | number,
+  ...args: unknown[]
+ ): Promise<string[]>;
+ zrangebyscore(
+  key: string,
+  min: string | number,
+  max: string | number,
+  ...args: unknown[]
+ ): Promise<string[]>;
+ zremrangebyscore(key: string, min: string | number, max: string | number): Promise<number>;
+ zrem(key: string, ...members: string[]): Promise<number>;
+ sadd(key: string, ...members: string[]): Promise<number>;
+ srem(key: string, ...members: string[]): Promise<number>;
+ smembers(key: string): Promise<string[]>;
+ lpush(key: string, ...values: string[]): Promise<number>;
+ rpop(key: string): Promise<string | null>;
+ llen(key: string): Promise<number>;
+
  // Expiration
  expire(key: string, seconds: number): Promise<number>;
  expiretime(key: string): Promise<number>;
+ pexpire(key: string, milliseconds: number): Promise<number>;
 
  // Scripting
  eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown>;

@@ -264,12 +264,82 @@ export class BunRedisWrapper {
   return this.queueRequest('HDEL', [key, ...fields]) as Promise<number>;
  }
 
+ async zadd(key: string, ...args: unknown[]): Promise<number> {
+  return this.queueRequest('ZADD', [key, ...args]) as Promise<number>;
+ }
+
+ async zcard(key: string): Promise<number> {
+  return this.queueRequest('ZCARD', [key]) as Promise<number>;
+ }
+
+ async zcount(key: string, min: string | number, max: string | number): Promise<number> {
+  return this.queueRequest('ZCOUNT', [key, min, max]) as Promise<number>;
+ }
+
+ async zrange(
+  key: string,
+  start: string | number,
+  stop: string | number,
+  ...args: unknown[]
+ ): Promise<string[]> {
+  return this.queueRequest('ZRANGE', [key, start, stop, ...args]) as Promise<string[]>;
+ }
+
+ async zrangebyscore(
+  key: string,
+  min: string | number,
+  max: string | number,
+  ...args: unknown[]
+ ): Promise<string[]> {
+  return this.queueRequest('ZRANGEBYSCORE', [key, min, max, ...args]) as Promise<string[]>;
+ }
+
+ async zremrangebyscore(key: string, min: string | number, max: string | number): Promise<number> {
+  return this.queueRequest('ZREMRANGEBYSCORE', [key, min, max]) as Promise<number>;
+ }
+
+ async zrem(key: string, ...members: string[]): Promise<number> {
+  if (members.length === 0) return 0;
+  return this.queueRequest('ZREM', [key, ...members]) as Promise<number>;
+ }
+
+ async sadd(key: string, ...members: string[]): Promise<number> {
+  if (members.length === 0) return 0;
+  return this.queueRequest('SADD', [key, ...members]) as Promise<number>;
+ }
+
+ async srem(key: string, ...members: string[]): Promise<number> {
+  if (members.length === 0) return 0;
+  return this.queueRequest('SREM', [key, ...members]) as Promise<number>;
+ }
+
+ async smembers(key: string): Promise<string[]> {
+  return this.queueRequest('SMEMBERS', [key]) as Promise<string[]>;
+ }
+
+ async lpush(key: string, ...values: string[]): Promise<number> {
+  if (values.length === 0) return 0;
+  return this.queueRequest('LPUSH', [key, ...values]) as Promise<number>;
+ }
+
+ async rpop(key: string): Promise<string | null> {
+  return this.queueRequest('RPOP', [key]) as Promise<string | null>;
+ }
+
+ async llen(key: string): Promise<number> {
+  return this.queueRequest('LLEN', [key]) as Promise<number>;
+ }
+
  async expire(key: string, seconds: number): Promise<number> {
   return this.queueRequest('EXPIRE', [key, seconds]) as Promise<number>;
  }
 
  async expiretime(key: string): Promise<number> {
   return this.queueRequest('EXPIRETIME', [key]) as Promise<number>;
+ }
+
+ async pexpire(key: string, milliseconds: number): Promise<number> {
+  return this.queueRequest('PEXPIRE', [key, milliseconds]) as Promise<number>;
  }
 
  async eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown> {

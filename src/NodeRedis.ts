@@ -39,13 +39,8 @@ export class NodeRedisWrapper {
  }
 
  async set(key: string, value: string, ...args: unknown[]): Promise<string | null> {
-  if (args.length >= 2 && (args[0] === 'EX' || args[0] === 'ex')) {
-   return this.client.set(key, value, 'EX', Number(args[1]));
-  }
-  if (args.length >= 2 && (args[0] === 'PX' || args[0] === 'px')) {
-   return this.client.set(key, value, 'PX', Number(args[1]));
-  }
-  return this.client.set(key, value);
+  if (!args.length) return this.client.set(key, value);
+  return this.client.call('SET', key, value, ...args.map(String)) as Promise<string | null>;
  }
 
  async del(...keys: string[]): Promise<number> {
@@ -138,12 +133,82 @@ export class NodeRedisWrapper {
   return this.client.hdel(key, ...fields);
  }
 
+ async zadd(key: string, ...args: unknown[]): Promise<number> {
+  return this.client.call('ZADD', key, ...args.map(String)) as Promise<number>;
+ }
+
+ async zcard(key: string): Promise<number> {
+  return this.client.zcard(key);
+ }
+
+ async zcount(key: string, min: string | number, max: string | number): Promise<number> {
+  return this.client.zcount(key, min, max);
+ }
+
+ async zrange(
+  key: string,
+  start: string | number,
+  stop: string | number,
+  ...args: unknown[]
+ ): Promise<string[]> {
+  return this.client.call('ZRANGE', key, start, stop, ...args.map(String)) as Promise<string[]>;
+ }
+
+ async zrangebyscore(
+  key: string,
+  min: string | number,
+  max: string | number,
+  ...args: unknown[]
+ ): Promise<string[]> {
+  return this.client.call('ZRANGEBYSCORE', key, min, max, ...args.map(String)) as Promise<string[]>;
+ }
+
+ async zremrangebyscore(key: string, min: string | number, max: string | number): Promise<number> {
+  return this.client.zremrangebyscore(key, min, max);
+ }
+
+ async zrem(key: string, ...members: string[]): Promise<number> {
+  if (members.length === 0) return 0;
+  return this.client.zrem(key, ...members);
+ }
+
+ async sadd(key: string, ...members: string[]): Promise<number> {
+  if (members.length === 0) return 0;
+  return this.client.sadd(key, ...members);
+ }
+
+ async srem(key: string, ...members: string[]): Promise<number> {
+  if (members.length === 0) return 0;
+  return this.client.srem(key, ...members);
+ }
+
+ async smembers(key: string): Promise<string[]> {
+  return this.client.smembers(key);
+ }
+
+ async lpush(key: string, ...values: string[]): Promise<number> {
+  if (values.length === 0) return 0;
+  return this.client.lpush(key, ...values);
+ }
+
+ async rpop(key: string): Promise<string | null> {
+  return this.client.rpop(key);
+ }
+
+ async llen(key: string): Promise<number> {
+  return this.client.llen(key);
+ }
+
  async expire(key: string, seconds: number): Promise<number> {
   return this.client.expire(key, seconds);
  }
 
  async expiretime(key: string): Promise<number> {
   return this.client.expiretime(key);
+ }
+
+ async pexpire(key: string, milliseconds: number): Promise<number> {
+  return this.client.pexpire(key, milliseconds);
  }
 
  async eval(script: string, numKeys: number, ...args: unknown[]): Promise<unknown> {
