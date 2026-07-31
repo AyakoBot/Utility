@@ -242,15 +242,35 @@ export default abstract class Cache<
   );
  }
 
+ getLatest(...ids: string[]): Promise<null | DeriveRFromAPI<T, K>> {
+  if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
+
+  return this.getTimes(...ids).then((times) => {
+   if (!times.length) return this.get(...ids);
+   return this.getAt(Math.max(...times), ...ids);
+  });
+ }
+
+ private keystoreEntries(...keystoreIds: string[]): Promise<string[][]> {
+  return this.redis
+   .hkeys(this.keystore(...keystoreIds))
+   .then((keys) => keys.map((k) => k.split(':').slice(2)));
+ }
+
  getAll(...keystoreIds: string[]): Promise<Array<DeriveRFromAPI<T, K>>> {
   if (keystoreIds.some((i) => i.length === 0)) return Promise.resolve([]);
 
-  return this.redis
-   .hkeys(this.keystore(...keystoreIds))
-   .then((keys) => keys.map((k) => k.split(':').slice(2).join(':')))
-   .then((ids) =>
-    Promise.all(ids.map((id) => this.get(...id.split(':')))).then((d) => d.filter((v) => !!v)),
-   );
+  return this.keystoreEntries(...keystoreIds).then((ids) =>
+   Promise.all(ids.map((id) => this.get(...id))).then((d) => d.filter((v) => !!v)),
+  );
+ }
+
+ getAllLatest(...keystoreIds: string[]): Promise<Array<DeriveRFromAPI<T, K>>> {
+  if (keystoreIds.some((i) => i.length === 0)) return Promise.resolve([]);
+
+  return this.keystoreEntries(...keystoreIds).then((ids) =>
+   Promise.all(ids.map((id) => this.getLatest(...id))).then((d) => d.filter((v) => !!v)),
+  );
  }
 
  getTimes(...ids: string[]): Promise<number[]> {
