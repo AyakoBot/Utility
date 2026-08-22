@@ -46,6 +46,19 @@ export default class UserCache extends Cache<APIUser> {
   return `https://cdn.discordapp.com/banners/${userId}/${banner}.${banner.startsWith('a_') ? 'gif' : 'webp'}`;
  }
 
+ async setMany(data: APIUser[]) {
+  const rDatas = data.map((d) => this.apiToR(d)).filter((d): d is RUser => !!d && !!d.id);
+  if (!rDatas.length) return false;
+
+  const pipeline = this.redis.pipeline();
+
+  await Promise.all(
+   rDatas.map((rData) => this.setValue(rData, [], [rData.id], undefined, pipeline)),
+  );
+
+  return pipeline.exec();
+ }
+
  async set(data: APIUser) {
   const rData = this.apiToR(data);
   if (!rData) return false;
