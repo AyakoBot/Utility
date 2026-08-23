@@ -71,7 +71,8 @@ export default class MessageCache extends Cache<APIMessage> {
   if (!rData) return false;
   if (!rData.guild_id || !rData.channel_id || !rData.id) return false;
 
-  await this.setValue(rData, [rData.guild_id, rData.channel_id], [rData.id], 1209600);
+  // TODO: restore to 1209600 (14d) once Redis has RAM headroom
+  await this.setValue(rData, [rData.guild_id, rData.channel_id], [rData.id], 604800);
   return true;
  }
 
