@@ -59,7 +59,23 @@ export default class MemberCache extends Cache<APIGuildMember> {
    ),
   );
 
-  return pipeline.exec();
+  const result = await pipeline.exec();
+
+  const failures = Array.isArray(result) ? result.filter(([err]) => !!err) : [];
+  if (failures.length) {
+   const [[first]] = failures;
+   // eslint-disable-next-line no-console
+   console.error(
+    `[MemberCache] setMany ${guildId}: received=${data.length} written=${rDatas.length} failed=${failures.length}/${Array.isArray(result) ? result.length : 0} first=${first?.message ?? first}`,
+   );
+  } else {
+   // eslint-disable-next-line no-console
+   console.log(
+    `[MemberCache] setMany ${guildId}: received=${data.length} written=${rDatas.length} cmds=${Array.isArray(result) ? result.length : 0}`,
+   );
+  }
+
+  return result;
  }
 
  async set(data: APIGuildMember, guildId: string) {
