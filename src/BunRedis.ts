@@ -101,45 +101,65 @@ export class BunRedisWrapper {
   });
  }
 
+ private static readonly maxConcurrentSends = 500;
+
  private async processQueue(): Promise<void> {
   if (this.processing || this.requestQueue.length === 0) return;
 
   this.processing = true;
 
   while (this.requestQueue.length > 0) {
-   const [request] = this.requestQueue;
-   const cmdStart = Date.now();
+   await this.ensureInit();
 
-   try {
-    await this.ensureInit();
-    const result = await this.sendWithTimeout(request.method, request.args);
-    const elapsed = Date.now() - cmdStart;
-    if (elapsed > this.slowThresholdMs) {
-     // eslint-disable-next-line no-console
-     console.log(`[Redis#${this.instanceId}] SLOW ${request.method}: ${elapsed}ms`);
+   const batch = this.requestQueue.splice(0, BunRedisWrapper.maxConcurrentSends);
+   const batchStart = Date.now();
+
+   const settled = await Promise.all(
+    batch.map((request) =>
+     this.sendWithTimeout(request.method, request.args).then(
+      (result) => ({ request, result, err: null as Error | null }),
+      (err: Error) => ({ request, result: undefined as unknown, err }),
+     ),
+    ),
+   );
+
+   const elapsed = Date.now() - batchStart;
+   if (elapsed > this.slowThresholdMs) {
+    // eslint-disable-next-line no-console
+    console.log(`[Redis#${this.instanceId}] SLOW batch of ${batch.length}: ${elapsed}ms`);
+   }
+
+   const retries: QueuedRequest[] = [];
+
+   for (const { request, result, err } of settled) {
+    if (!err) {
+     request.resolve(result);
+     continue;
     }
-    this.requestQueue.shift();
-    request.resolve(result);
-   } catch (err) {
-    const isTimeout = err instanceof Error && err.message.includes('timed out');
+
+    const isTimeout = err.message.includes('timed out');
     // eslint-disable-next-line no-console
     console.log(
-     `[Redis#${this.instanceId}] ERROR ${request.method}: ${(err as Error).message}, isTimeout: ${isTimeout}`,
+     `[Redis#${this.instanceId}] ERROR ${request.method}: ${err.message}, isTimeout: ${isTimeout}`,
     );
 
     if (isTimeout && request.retries < this.maxRetries) {
      request.retries++;
-     // eslint-disable-next-line no-console
-     console.log(
-      `[Redis#${this.instanceId}] Retry ${request.retries}/${this.maxRetries} for ${request.method}`,
-     );
-     this.reconnect();
-     await this.ensureInit();
+     retries.push(request);
      continue;
     }
 
-    this.requestQueue.shift();
-    request.reject(err as Error);
+    request.reject(err);
+   }
+
+   if (retries.length) {
+    // eslint-disable-next-line no-console
+    console.log(
+     `[Redis#${this.instanceId}] Retrying ${retries.length} timed-out request(s)`,
+    );
+    this.reconnect();
+    await this.ensureInit();
+    this.requestQueue.unshift(...retries);
    }
   }
 

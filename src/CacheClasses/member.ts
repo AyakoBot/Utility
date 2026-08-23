@@ -51,31 +51,17 @@ export default class MemberCache extends Cache<APIGuildMember> {
    .filter((d) => !!d.guild_id && !!d.user_id);
   if (!rDatas.length) return false;
 
-  const pipeline = this.redis.pipeline();
+  const written = await this.setValues(rDatas, [guildId], (rData) => [
+   rData.guild_id,
+   rData.user_id,
+  ]);
 
-  await Promise.all(
-   rDatas.map((rData) =>
-    this.setValue(rData, [rData.guild_id], [rData.guild_id, rData.user_id], undefined, pipeline),
-   ),
+  // eslint-disable-next-line no-console
+  console.log(
+   `[MemberCache] setMany ${guildId}: received=${data.length} cached=${rDatas.length} written=${written}`,
   );
 
-  const result = await pipeline.exec();
-
-  const failures = Array.isArray(result) ? result.filter(([err]) => !!err) : [];
-  if (failures.length) {
-   const [[first]] = failures;
-   // eslint-disable-next-line no-console
-   console.error(
-    `[MemberCache] setMany ${guildId}: received=${data.length} written=${rDatas.length} failed=${failures.length}/${Array.isArray(result) ? result.length : 0} first=${first?.message ?? first}`,
-   );
-  } else {
-   // eslint-disable-next-line no-console
-   console.log(
-    `[MemberCache] setMany ${guildId}: received=${data.length} written=${rDatas.length} cmds=${Array.isArray(result) ? result.length : 0}`,
-   );
-  }
-
-  return result;
+  return written;
  }
 
  async set(data: APIGuildMember, guildId: string) {

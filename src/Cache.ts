@@ -224,6 +224,8 @@ export class Cache extends EventEmitter {
   });
  }
 
+ private static readonly maxFlushBatch = 10000;
+
  private async flushPendingCommands(): Promise<void> {
   this.flushTimer = null;
 
@@ -232,8 +234,7 @@ export class Cache extends EventEmitter {
 
   try {
    while (this.pendingCommands.length > 0) {
-    const commands = this.pendingCommands;
-    this.pendingCommands = [];
+    const commands = this.pendingCommands.splice(0, Cache.maxFlushBatch);
 
     this.logger.debug(`[Cache] Flushing ${commands.length} commands in single pipeline`);
 

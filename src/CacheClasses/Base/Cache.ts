@@ -322,6 +322,72 @@ export default abstract class Cache<
   return p.exec();
  }
 
+ private batchScript = `
+ local keystoreKey = KEYS[1]
+ local ttl = tonumber(ARGV[1])
+ local timestamp = ARGV[2]
+ local written = 0
+
+ for i = 3, #ARGV, 4 do
+   local currentKey = ARGV[i]
+   local timestampKey = ARGV[i + 1]
+   local historyKey = ARGV[i + 2]
+   local newValue = ARGV[i + 3]
+
+   local current = redis.call('GET', currentKey)
+
+   if current == newValue then
+     redis.call('EXPIRE', currentKey, ttl)
+   else
+     redis.call('SET', currentKey, newValue, 'EX', ttl)
+     redis.call('SET', timestampKey, newValue, 'EX', ttl)
+     redis.call('HSET', historyKey, timestampKey, timestamp)
+     redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, timestampKey)
+     redis.call('EXPIRE', historyKey, ttl)
+     written = written + 1
+   end
+
+   if keystoreKey ~= '' then
+     redis.call('HSET', keystoreKey, currentKey, 0)
+     redis.call('HEXPIRE', keystoreKey, ttl, 'FIELDS', 1, currentKey)
+   end
+ end
+
+ if keystoreKey ~= '' then
+   redis.call('EXPIRE', keystoreKey, ttl)
+ end
+
+ return written
+  `;
+
+ async setValues(
+  values: Array<DeriveRFromAPI<T, K>>,
+  keystoreIds: string[],
+  idsOf: (value: DeriveRFromAPI<T, K>) => string[],
+  ttl: number = 604800,
+ ): Promise<number> {
+  if (!values.length) return 0;
+
+  const now = Date.now();
+  const keystoreKey = keystoreIds.length ? this.keystore(...keystoreIds) : '';
+  const args: string[] = [String(ttl), String(now)];
+
+  for (const value of values) {
+   const ids = idsOf(value);
+   args.push(
+    this.key(...ids, 'current'),
+    this.key(...ids, String(now)),
+    this.history(...ids),
+    serialize(value),
+   );
+  }
+
+  const raw = await this.redis.eval(this.batchScript, 1, keystoreKey, ...args);
+  const written = Array.isArray(raw) ? raw[raw.length - 1] : raw;
+
+  return typeof written === 'number' ? written : Number(written) || 0;
+ }
+
  del(...ids: string[]) {
   if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
   return this.redis.del(this.key(...ids, 'current'));
