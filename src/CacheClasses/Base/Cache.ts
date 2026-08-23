@@ -328,11 +328,12 @@ export default abstract class Cache<
  local timestamp = ARGV[2]
  local written = 0
 
- for i = 3, #ARGV, 4 do
+ for i = 3, #ARGV, 5 do
    local currentKey = ARGV[i]
    local timestampKey = ARGV[i + 1]
    local historyKey = ARGV[i + 2]
    local newValue = ARGV[i + 3]
+   local baseKey = ARGV[i + 4]
 
    local current = redis.call('GET', currentKey)
 
@@ -348,8 +349,8 @@ export default abstract class Cache<
    end
 
    if keystoreKey ~= '' then
-     redis.call('HSET', keystoreKey, currentKey, 0)
-     redis.call('HEXPIRE', keystoreKey, ttl, 'FIELDS', 1, currentKey)
+     redis.call('HSET', keystoreKey, baseKey, 0)
+     redis.call('HEXPIRE', keystoreKey, ttl, 'FIELDS', 1, baseKey)
    end
  end
 
@@ -379,6 +380,7 @@ export default abstract class Cache<
     this.key(...ids, String(now)),
     this.history(...ids),
     serialize(value),
+    this.key(...ids),
    );
   }
 
