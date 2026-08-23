@@ -244,7 +244,18 @@ export class Cache extends EventEmitter {
 
     const startTime = Date.now();
     try {
-     await pipeline.exec();
+     const result = await pipeline.exec();
+
+     if (result) {
+      const failures = result.filter(([err]) => !!err);
+      if (failures.length) {
+       const [[first]] = failures;
+       this.logger.error(
+        `[Redis] Flush had ${failures.length}/${result.length} failed commands. First: ${first?.message ?? first}`,
+       );
+      }
+     }
+
      if (commands.length > 100 || process.argv.includes('--debug')) {
       this.logger.log(
        `[Cache] Flush complete: ${commands.length} commands in ${Date.now() - startTime}ms`,
