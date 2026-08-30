@@ -136,6 +136,8 @@ export type DeriveRFromAPI<T, K extends boolean> = T extends APIThreadChannel & 
                                                          ? REventUser
                                                          : never;
 
+const currentField = 'current';
+
 export default abstract class Cache<
  T extends
   | APIUser
@@ -170,11 +172,11 @@ export default abstract class Cache<
 
  private dedupeScript = `
  local currentKey = KEYS[1]
- local timestampKey = KEYS[2]
- local historyKey = KEYS[3]
+ local historyKey = KEYS[2]
  local newValue = ARGV[1]
  local ttl = tonumber(ARGV[2])
  local timestamp = ARGV[3]
+ local baseKey = ARGV[4]
 
  local current = redis.call('GET', currentKey)
 
@@ -184,10 +186,19 @@ export default abstract class Cache<
    return 0
  end
 
+ if current then
+   local previous = redis.call('HGET', historyKey, '${currentField}')
+   if previous then
+     local previousKey = baseKey .. ':' .. previous
+     redis.call('SET', previousKey, current, 'EX', ttl)
+     redis.call('HSET', historyKey, previousKey, previous)
+     redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, previousKey)
+   end
+ end
+
  redis.call('SET', currentKey, newValue, 'EX', ttl)
- redis.call('SET', timestampKey, newValue, 'EX', ttl)
- redis.call('HSET', historyKey, timestampKey, timestamp)
- redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, timestampKey)
+ redis.call('HSET', historyKey, '${currentField}', timestamp)
+ redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, '${currentField}')
  redis.call('EXPIRE', historyKey, ttl)
  return 1
   `;
@@ -225,13 +236,19 @@ export default abstract class Cache<
  get(...ids: string[]): Promise<null | DeriveRFromAPI<T, K>> {
   if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
 
-  return this.redis.get(this.key(...ids, 'current')).then((data) => this.stringToData(data));
+  return this.redis.get(this.key(...ids, currentField)).then((data) => this.stringToData(data));
  }
 
  getAt(time: number, ...ids: string[]): Promise<null | DeriveRFromAPI<T, K>> {
   if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
 
-  return this.redis.get(this.key(...ids, String(time))).then((data) => this.stringToData(data));
+  return this.redis.get(this.key(...ids, String(time))).then((data) => {
+   if (data) return this.stringToData(data);
+
+   return this.redis
+    .hget(this.history(...ids), currentField)
+    .then((live) => (live !== null && Number(live) === time ? this.get(...ids) : null));
+  });
  }
 
  getAllTimes(...ids: string[]): Promise<Array<DeriveRFromAPI<T, K>>> {
@@ -299,25 +316,25 @@ export default abstract class Cache<
  ) {
   const now = Date.now();
   const valueStr = serialize(value);
-  const currentKey = this.key(...ids, 'current');
-  const timestampKey = this.key(...ids, String(now));
+  const currentKey = this.key(...ids, currentField);
+  const baseKey = this.key(...ids);
   const historyKey = this.history(...ids);
 
   if (pipeline) {
-   pipeline.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
+   pipeline.eval(this.dedupeScript, 2, currentKey, historyKey, valueStr, ttl, now, baseKey);
    if (keystoreIds.length > 0) this.setKeystore(pipeline, ttl, keystoreIds, ids);
    return null;
   }
 
   if (this.queueFn) {
    return this.queueFn((p) => {
-    p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
+    p.eval(this.dedupeScript, 2, currentKey, historyKey, valueStr, ttl, now, baseKey);
     if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
    });
   }
 
   const p = this.redis.pipeline();
-  p.eval(this.dedupeScript, 3, currentKey, timestampKey, historyKey, valueStr, ttl, now);
+  p.eval(this.dedupeScript, 2, currentKey, historyKey, valueStr, ttl, now, baseKey);
   if (keystoreIds.length > 0) this.setKeystore(p, ttl, keystoreIds, ids);
   return p.exec();
  }
@@ -328,22 +345,30 @@ export default abstract class Cache<
  local timestamp = ARGV[2]
  local written = 0
 
- for i = 3, #ARGV, 5 do
+ for i = 3, #ARGV, 4 do
    local currentKey = ARGV[i]
-   local timestampKey = ARGV[i + 1]
-   local historyKey = ARGV[i + 2]
-   local newValue = ARGV[i + 3]
-   local baseKey = ARGV[i + 4]
+   local historyKey = ARGV[i + 1]
+   local newValue = ARGV[i + 2]
+   local baseKey = ARGV[i + 3]
 
    local current = redis.call('GET', currentKey)
 
    if current == newValue then
      redis.call('EXPIRE', currentKey, ttl)
    else
+     if current then
+       local previous = redis.call('HGET', historyKey, '${currentField}')
+       if previous then
+         local previousKey = baseKey .. ':' .. previous
+         redis.call('SET', previousKey, current, 'EX', ttl)
+         redis.call('HSET', historyKey, previousKey, previous)
+         redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, previousKey)
+       end
+     end
+
      redis.call('SET', currentKey, newValue, 'EX', ttl)
-     redis.call('SET', timestampKey, newValue, 'EX', ttl)
-     redis.call('HSET', historyKey, timestampKey, timestamp)
-     redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, timestampKey)
+     redis.call('HSET', historyKey, '${currentField}', timestamp)
+     redis.call('HEXPIRE', historyKey, ttl, 'FIELDS', 1, '${currentField}')
      redis.call('EXPIRE', historyKey, ttl)
      written = written + 1
    end
@@ -376,8 +401,7 @@ export default abstract class Cache<
   for (const value of values) {
    const ids = idsOf(value);
    args.push(
-    this.key(...ids, 'current'),
-    this.key(...ids, String(now)),
+    this.key(...ids, currentField),
     this.history(...ids),
     serialize(value),
     this.key(...ids),
@@ -392,7 +416,7 @@ export default abstract class Cache<
 
  del(...ids: string[]) {
   if (ids.some((i) => i.length === 0)) return Promise.resolve(null);
-  return this.redis.del(this.key(...ids, 'current'));
+  return this.redis.del(this.key(...ids, currentField));
  }
 
  abstract apiToR(data: T, ...additionalArgs: string[]): DeriveRFromAPI<T, K> | false;
